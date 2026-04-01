@@ -1,7 +1,6 @@
 import os
-# 🚀 gRPC 통신 지연 및 데드락 방지 환경변수 (2종 세트)
+# 🚀 gRPC 통신 지연 및 데드락 방지 환경변수
 os.environ["GRPC_DNS_RESOLVER"] = "native"
-os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "1"
 
 import streamlit as st
 import firebase_admin
@@ -33,10 +32,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 💡 최우선 UI 렌더링 (파란 화면 방지)
-st.markdown("<div style='color:white; font-size:18px; font-weight:bold; margin-bottom:10px;'>⏳ 시간표 로딩 중...</div>", unsafe_allow_html=True)
 status = st.empty()
-status.info("1단계: 화면 설정 완료 (데이터베이스 연결 준비 중...)")
 
 # 3. CSV 데이터 로딩
 @st.cache_data
@@ -61,7 +57,6 @@ def load_csv():
     return t_data
 
 teachers_data = load_csv()
-status.success("2단계: 기본 시간표 파일(CSV) 읽기 완료!")
 
 # 4. 상태 관리 초기화
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
@@ -82,38 +77,36 @@ themes = [
 t = themes[st.session_state.theme_idx]
 st.markdown(f"<style>.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
 
-# 5. Firebase 초기화 및 연결 시도
-status.warning("3단계: 파이어베이스 서버 연결 시도 중... (여기서 멈추면 연결 오류입니다)")
-@st.cache_resource
-def get_db():
-    if not firebase_admin._apps:
+# 💡 5. Firebase 초기화 (캐시 제거로 안정성 확보)
+if not firebase_admin._apps:
+    try:
         key_dict = json.loads(st.secrets["FIREBASE_KEY"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred)
-    return firestore.client()
+    except Exception as e:
+        status.error(f"인증 오류: {e}")
 
-try:
-    db = get_db()
-    status.success("3단계: 파이어베이스 연결 성공! 데이터를 가져옵니다...")
-except Exception as e:
-    status.error(f"🚨 연결 실패! 에러 내용: {e}")
-    st.stop()
+# 캐시 없이 매번 새롭게 클라이언트 생성 (연결 끊김 방지)
+db = firestore.client()
 
-# 6. 클라우드 데이터 선행 로드
+# 💡 6. 클라우드 데이터 선행 로드 (timeout=5 설정으로 무한 멈춤 원천 차단)
 custom_data = {}
 memos_list = []
 try:
-    docs = db.collection('custom_data').stream()
-    for doc in docs: custom_data[doc.id] = doc.to_dict()
+    # 5초 안에 응답 안 오면 강제로 끊고 에러 반환!
+    docs = db.collection('custom_data').get(timeout=5)
+    for doc in docs: 
+        custom_data[doc.id] = doc.to_dict()
     
-    memo_doc = db.collection('memos').document(st.session_state.teacher).get()
-    if memo_doc.exists: memos_list = memo_doc.to_dict().get('memos_list', [])
-    status.success("4단계: 모든 데이터 로드 완료! 시간표를 생성합니다.")
+    memo_doc = db.collection('memos').document(st.session_state.teacher).get(timeout=5)
+    if memo_doc.exists: 
+        memos_list = memo_doc.to_dict().get('memos_list', [])
+    
+    # 통신 성공 시 로딩창 싹 지우기
+    status.empty()
 except Exception as e: 
-    status.error(f"🚨 데이터 읽기 실패 (여기서 멈추면 DB 규칙/통신 문제입니다): {e}")
+    status.error(f"🚨 데이터 통신 지연/오류 발생: {e}")
 
-# 로딩 메시지 지우기
-status.empty()
 t_custom = custom_data.get(st.session_state.teacher, {})
 memo_count = len(memos_list)
 
