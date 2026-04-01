@@ -1,6 +1,7 @@
 import os
-# 🚀 gRPC 통신 지연(60초 멈춤) 버그를 해결하는 마법의 코드
+# 🚀 gRPC 통신 지연 및 데드락 방지 환경변수 (2종 세트)
 os.environ["GRPC_DNS_RESOLVER"] = "native"
+os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "1"
 
 import streamlit as st
 import firebase_admin
@@ -10,42 +11,34 @@ import base64
 import json
 from datetime import datetime, timedelta, timezone
 
-# 1. 페이지 기본 설정 (스마트폰 환경)
+# 1. 페이지 기본 설정
 st.set_page_config(page_title="모바일 시간표", page_icon="📅", layout="centered")
 
-# 2. 모바일 최적화 CSS 및 제스처(확대/축소) 지원 메타 태그 주입
+# 2. 모바일 최적화 CSS
 st.markdown("""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <style>
-        .stApp { max-width: 420px; margin: 0 auto; }
+        .stApp { max-width: 420px; margin: 0 auto; background-color: #2c3e50; }
         .block-container { padding: 1rem 0.5rem !important; }
         header { visibility: hidden; }
         div[data-baseweb="select"] { font-size: 14px !important; padding: 0px !important; height: 35px !important; }
         .stButton>button { height: 35px !important; padding: 0px 3px !important; font-size: 13px !important; line-height: 1 !important; }
         div[data-testid="stDialog"] { border-radius: 15px; }
-        
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 3px; }
-        
         .cell-link { display: block; height: 100%; text-decoration: none !important; color: inherit !important; }
         .memo-link { display: block; text-decoration: none !important; color: inherit !important; }
         .action-btn { display: flex; align-items: center; justify-content: center; text-decoration: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Firebase 초기화
-@st.cache_resource
-def get_db():
-    if not firebase_admin._apps:
-        key_dict = json.loads(st.secrets["FIREBASE_KEY"])
-        cred = credentials.Certificate(key_dict)
-        firebase_admin.initialize_app(cred)
-    return firestore.client()
+# 💡 최우선 UI 렌더링 (파란 화면 방지)
+st.markdown("<div style='color:white; font-size:18px; font-weight:bold; margin-bottom:10px;'>⏳ 시간표 로딩 중...</div>", unsafe_allow_html=True)
+status = st.empty()
+status.info("1단계: 화면 설정 완료 (데이터베이스 연결 준비 중...)")
 
-db = get_db()
-
-# 4. CSV 데이터 로딩
+# 3. CSV 데이터 로딩
 @st.cache_data
 def load_csv():
     days = ["월", "화", "수", "목", "금"]
@@ -68,8 +61,9 @@ def load_csv():
     return t_data
 
 teachers_data = load_csv()
+status.success("2단계: 기본 시간표 파일(CSV) 읽기 완료!")
 
-# 5. 상태 관리 초기화
+# 4. 상태 관리 초기화
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
 if 'show_extra' not in st.session_state: st.session_state.show_extra = False
@@ -86,10 +80,26 @@ themes = [
     { 'name': '모노톤', 'bg': '#f5f5f5', 'top': '#333333', 'grid': '#e0e0e0', 'head_bg': '#555555', 'head_fg': 'white', 'per_bg': '#999999', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d4d4d4', 'cell_fg': '#000000', 'hl_per': '#d90429', 'hl_cell': '#edf2f4' }
 ]
 t = themes[st.session_state.theme_idx]
+st.markdown(f"<style>.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
 
-st.markdown(f"<style>.stApp {{ background-color: {t['bg']}; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
+# 5. Firebase 초기화 및 연결 시도
+status.warning("3단계: 파이어베이스 서버 연결 시도 중... (여기서 멈추면 연결 오류입니다)")
+@st.cache_resource
+def get_db():
+    if not firebase_admin._apps:
+        key_dict = json.loads(st.secrets["FIREBASE_KEY"])
+        cred = credentials.Certificate(key_dict)
+        firebase_admin.initialize_app(cred)
+    return firestore.client()
 
-# 💡 6. 클라우드 데이터 선행 로드 (에러 발생 시 화면에 띄우도록 수정)
+try:
+    db = get_db()
+    status.success("3단계: 파이어베이스 연결 성공! 데이터를 가져옵니다...")
+except Exception as e:
+    status.error(f"🚨 연결 실패! 에러 내용: {e}")
+    st.stop()
+
+# 6. 클라우드 데이터 선행 로드
 custom_data = {}
 memos_list = []
 try:
@@ -98,11 +108,16 @@ try:
     
     memo_doc = db.collection('memos').document(st.session_state.teacher).get()
     if memo_doc.exists: memos_list = memo_doc.to_dict().get('memos_list', [])
+    status.success("4단계: 모든 데이터 로드 완료! 시간표를 생성합니다.")
 except Exception as e: 
-    st.error(f"⚠️ 클라우드 통신 오류 (잠시 후 새로고침 해주세요): {e}")
+    status.error(f"🚨 데이터 읽기 실패 (여기서 멈추면 DB 규칙/통신 문제입니다): {e}")
 
+# 로딩 메시지 지우기
+status.empty()
 t_custom = custom_data.get(st.session_state.teacher, {})
 memo_count = len(memos_list)
+
+# ----------------- 아래부터는 기존 UI 로직 동일 -----------------
 
 # 7. 모달창 설정
 @st.dialog("일정 수정")
@@ -162,23 +177,19 @@ def add_memo_modal():
 def delete_memos_modal():
     st.markdown("<span style='font-size:13px;'>삭제할 메모를 선택하세요.</span>", unsafe_allow_html=True)
     to_delete = []
-    
     for i, m in enumerate(memos_list):
         num = len(memos_list) - i
         short_text = m.get('text', '')
         if len(short_text) > 15: short_text = short_text[:15] + "..."
         if st.checkbox(f"{num}. {short_text}", key=f"del_cb_{i}"):
             to_delete.append(i)
-            
     st.markdown("---")
     if st.button("🗑️ 확인 (선택 삭제)", use_container_width=True):
         if to_delete:
-            for i in sorted(to_delete, reverse=True):
-                memos_list.pop(i)
+            for i in sorted(to_delete, reverse=True): memos_list.pop(i)
             db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
         st.rerun()
 
-# URL 파라미터를 통해 버튼 터치 인식
 if "edit_key" in st.query_params:
     e_key = st.query_params["edit_key"]
     e_subj = st.query_params.get("edit_subj", "")
@@ -229,7 +240,6 @@ with r1_c5:
         if new_theme != themes[st.session_state.theme_idx]['name']:
             st.session_state.theme_idx = [th['name'] for th in themes].index(new_theme)
             st.rerun()
-            
         new_font = st.selectbox("A 폰트", ["맑은 고딕", "바탕", "돋움", "굴림", "Arial"], index=["맑은 고딕", "바탕", "돋움", "굴림", "Arial"].index(st.session_state.font_name))
         if new_font != st.session_state.font_name:
             st.session_state.font_name = new_font
