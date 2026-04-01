@@ -1,5 +1,5 @@
 import os
-# 🚀 gRPC 통신 지연 및 데드락 방지 환경변수
+# 🚀 gRPC 통신 지연 방지 환경변수
 os.environ["GRPC_DNS_RESOLVER"] = "native"
 os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "1"
 
@@ -78,10 +78,13 @@ themes = [
 t = themes[st.session_state.theme_idx]
 st.markdown(f"<style>.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
 
-# 5. Firebase 초기화
+# 💡 5. Firebase 초기화 (JWT Signature 오류 자동 복구 코드 추가)
 if not firebase_admin._apps:
     try:
         key_dict = json.loads(st.secrets["FIREBASE_KEY"])
+        # 🔥 이 한 줄이 핵심입니다! 꼬여버린 비밀키의 줄바꿈을 강제로 정상화시킵니다.
+        key_dict["private_key"] = key_dict["private_key"].replace('\\n', '\n')
+        
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred)
     except Exception as e:
@@ -102,7 +105,7 @@ try:
         memos_list = memo_doc.to_dict().get('memos_list', [])
     status.empty()
 except Exception as e: 
-    status.error(f"🚨 데이터 통신 지연/오류 발생: {e}")
+    status.error(f"🚨 데이터 연결 실패: {e}")
 
 t_custom = custom_data.get(st.session_state.teacher, {})
 memo_count = len(memos_list)
@@ -246,7 +249,7 @@ with r2_c3:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 💡 10. 시간 및 그리드 로직 (누락되었던 days, period_times 완벽 복구)
+# 10. 시간 및 그리드 로직
 days = ["월", "화", "수", "목", "금"]
 period_times = [
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
