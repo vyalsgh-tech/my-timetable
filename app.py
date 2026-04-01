@@ -1,6 +1,7 @@
 import os
 # 🚀 gRPC 통신 지연 및 데드락 방지 환경변수
 os.environ["GRPC_DNS_RESOLVER"] = "native"
+os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "1"
 
 import streamlit as st
 import firebase_admin
@@ -77,7 +78,7 @@ themes = [
 t = themes[st.session_state.theme_idx]
 st.markdown(f"<style>.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
 
-# 💡 5. Firebase 초기화 (캐시 제거로 안정성 확보)
+# 5. Firebase 초기화
 if not firebase_admin._apps:
     try:
         key_dict = json.loads(st.secrets["FIREBASE_KEY"])
@@ -86,14 +87,12 @@ if not firebase_admin._apps:
     except Exception as e:
         status.error(f"인증 오류: {e}")
 
-# 캐시 없이 매번 새롭게 클라이언트 생성 (연결 끊김 방지)
 db = firestore.client()
 
-# 💡 6. 클라우드 데이터 선행 로드 (timeout=5 설정으로 무한 멈춤 원천 차단)
+# 6. 클라우드 데이터 선행 로드
 custom_data = {}
 memos_list = []
 try:
-    # 5초 안에 응답 안 오면 강제로 끊고 에러 반환!
     docs = db.collection('custom_data').get(timeout=5)
     for doc in docs: 
         custom_data[doc.id] = doc.to_dict()
@@ -101,16 +100,12 @@ try:
     memo_doc = db.collection('memos').document(st.session_state.teacher).get(timeout=5)
     if memo_doc.exists: 
         memos_list = memo_doc.to_dict().get('memos_list', [])
-    
-    # 통신 성공 시 로딩창 싹 지우기
     status.empty()
 except Exception as e: 
     status.error(f"🚨 데이터 통신 지연/오류 발생: {e}")
 
 t_custom = custom_data.get(st.session_state.teacher, {})
 memo_count = len(memos_list)
-
-# ----------------- 아래부터는 기존 UI 로직 동일 -----------------
 
 # 7. 모달창 설정
 @st.dialog("일정 수정")
@@ -251,7 +246,15 @@ with r2_c3:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 10. 시간 및 그리드 로직 (Timezone-aware)
+# 💡 10. 시간 및 그리드 로직 (누락되었던 days, period_times 완벽 복구)
+days = ["월", "화", "수", "목", "금"]
+period_times = [
+    ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
+    ("3교시", "10:00\n10:50"), ("4교시", "11:00\n11:50"), ("점심", "11:50\n12:40"),
+    ("5교시", "12:40\n13:30"), ("6교시", "13:40\n14:30"), ("7교시", "14:40\n15:30"),
+    ("8교시", "16:00\n16:50"), ("9교시", "17:00\n17:50")
+]
+
 kst_tz = timezone(timedelta(hours=9))
 now_kst = datetime.now(kst_tz) 
 
