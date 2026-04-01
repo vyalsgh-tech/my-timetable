@@ -4,6 +4,7 @@ from firebase_admin import credentials, firestore
 import csv
 import os
 import base64
+import json # json 모듈 추가
 from datetime import datetime, timedelta
 
 # 1. 페이지 기본 설정 (스마트폰 환경)
@@ -20,23 +21,23 @@ st.markdown("""
         .stButton>button { height: 35px !important; padding: 0px 3px !important; font-size: 13px !important; line-height: 1 !important; }
         div[data-testid="stDialog"] { border-radius: 15px; }
         
-        /* 웹킷 브라우저용 스크롤바 예쁘게 다듬기 */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 3px; }
         
-        /* 링크 기본 속성 제어 (오작동 방지용 독립 클래스) */
         .cell-link { display: block; height: 100%; text-decoration: none !important; color: inherit !important; }
         .memo-link { display: block; text-decoration: none !important; color: inherit !important; }
         .action-btn { display: flex; align-items: center; justify-content: center; text-decoration: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Firebase 초기화
+# 💡 3. Firebase 초기화 (비밀 금고에서 키를 꺼내오는 방식으로 변경)
 @st.cache_resource
 def get_db():
     if not firebase_admin._apps:
-        cred = credentials.Certificate("firebase_key.json")
+        # st.secrets에 저장해둔 텍스트를 불러와 딕셔너리로 변환
+        key_dict = json.loads(st.secrets["FIREBASE_KEY"])
+        cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred)
     return firestore.client()
 
@@ -174,7 +175,6 @@ def delete_memos_modal():
             db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
         st.rerun()
 
-# URL 파라미터를 통해 버튼 터치 인식
 if "edit_key" in st.query_params:
     e_key = st.query_params["edit_key"]
     e_subj = st.query_params.get("edit_subj", "")
@@ -367,7 +367,7 @@ html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
 
-# 💡 12. 메모장 박스 (마크다운 버그 방지를 위해 코드를 1줄로 평탄화하여 작성)
+# 12. 클릭 가능한 인터랙티브 메모장
 if st.session_state.show_memo:
     memo_html = f"<div style='background-color:{t['bg']}; padding:8px; border: 2px solid {t['grid']}; border-top:none; border-bottom-left-radius:8px; border-bottom-right-radius:8px;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px;'><div style='font-size:14px; font-weight:bold; color:{t['head_fg']};'>📝 메모</div><div style='display: flex; gap: 8px;'><a href='/?action=add_memo' target='_self' class='action-btn' style='background-color:{t['top']}; color:{t['head_fg']} !important; padding:4px 12px; border-radius:5px; font-size:12px; border:1px solid {t['grid']}; box-shadow: 0 1px 2px rgba(0,0,0,0.2);'>➕</a><a href='/?action=del_memo' target='_self' class='action-btn' style='background-color:{t['top']}; color:{t['head_fg']} !important; padding:4px 12px; border-radius:5px; font-size:12px; border:1px solid {t['grid']}; box-shadow: 0 1px 2px rgba(0,0,0,0.2);'>➖</a></div></div><div style='max-height:160px; overflow-y:auto;'>"
     if memos_list:
