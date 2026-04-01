@@ -1,11 +1,14 @@
+import os
+# 🚀 gRPC 통신 지연(60초 멈춤) 버그를 해결하는 마법의 코드
+os.environ["GRPC_DNS_RESOLVER"] = "native"
+
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 import csv
-import os
 import base64
-import json # json 모듈 추가
-from datetime import datetime, timedelta, timezone # 💡 timezone 모듈 추가
+import json
+from datetime import datetime, timedelta, timezone
 
 # 1. 페이지 기본 설정 (스마트폰 환경)
 st.set_page_config(page_title="모바일 시간표", page_icon="📅", layout="centered")
@@ -31,11 +34,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Firebase 초기화 (비밀 금고에서 키를 꺼내오는 방식으로 변경)
+# 3. Firebase 초기화
 @st.cache_resource
 def get_db():
     if not firebase_admin._apps:
-        # st.secrets에 저장해둔 텍스트를 불러와 딕셔너리로 변환
         key_dict = json.loads(st.secrets["FIREBASE_KEY"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred)
@@ -87,7 +89,7 @@ t = themes[st.session_state.theme_idx]
 
 st.markdown(f"<style>.stApp {{ background-color: {t['bg']}; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
 
-# 6. 클라우드 데이터 선행 로드
+# 💡 6. 클라우드 데이터 선행 로드 (에러 발생 시 화면에 띄우도록 수정)
 custom_data = {}
 memos_list = []
 try:
@@ -96,7 +98,8 @@ try:
     
     memo_doc = db.collection('memos').document(st.session_state.teacher).get()
     if memo_doc.exists: memos_list = memo_doc.to_dict().get('memos_list', [])
-except: pass
+except Exception as e: 
+    st.error(f"⚠️ 클라우드 통신 오류 (잠시 후 새로고침 해주세요): {e}")
 
 t_custom = custom_data.get(st.session_state.teacher, {})
 memo_count = len(memos_list)
@@ -245,25 +248,15 @@ with r2_c3:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 10. 시간 및 그리드 로직
-days = ["월", "화", "수", "목", "금"]
-period_times = [
-    ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
-    ("3교시", "10:00\n10:50"), ("4교시", "11:00\n11:50"), ("점심", "11:50\n12:40"),
-    ("5교시", "12:40\n13:30"), ("6교시", "13:40\n14:30"), ("7교시", "14:40\n15:30"),
-    ("8교시", "16:00\n16:50"), ("9교시", "17:00\n17:50")
-]
-
-# 💡 10. 시간 및 그리드 로직 (Timezone-aware로 변경)
-# Korea timezone is UTC+9
+# 10. 시간 및 그리드 로직 (Timezone-aware)
 kst_tz = timezone(timedelta(hours=9))
-now_kst = datetime.now(kst_tz) # 한국 시간으로 현재 시각을 가져옴
+now_kst = datetime.now(kst_tz) 
 
 target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 is_current_week = (st.session_state.week_offset == 0)
-today_idx = now_kst.weekday() # 한국 시간 기준 요일
-now_mins = now_kst.hour * 60 + now_kst.minute # 한국 시간 기준 분(mins)
+today_idx = now_kst.weekday() 
+now_mins = now_kst.hour * 60 + now_kst.minute 
 active_row, preview_row = None, None
 
 def time_to_mins(t_str):
@@ -273,7 +266,6 @@ def time_to_mins(t_str):
 for row_idx, (period, time_range) in enumerate(period_times):
     start_str, end_str = time_range.split('\n')
     start_m, end_m = time_to_mins(start_str), time_to_mins(end_str)
-    # 한국 시간 기준으로 비교하여 정상 작동
     if start_m <= now_mins <= end_m:
         active_row = row_idx
         if period == "점심": preview_row = row_idx + 1 
