@@ -5,7 +5,7 @@ import csv
 import os
 import base64
 import json # json 모듈 추가
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone # 💡 timezone 모듈 추가
 
 # 1. 페이지 기본 설정 (스마트폰 환경)
 st.set_page_config(page_title="모바일 시간표", page_icon="📅", layout="centered")
@@ -31,7 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 💡 3. Firebase 초기화 (비밀 금고에서 키를 꺼내오는 방식으로 변경)
+# 3. Firebase 초기화 (비밀 금고에서 키를 꺼내오는 방식으로 변경)
 @st.cache_resource
 def get_db():
     if not firebase_admin._apps:
@@ -175,6 +175,7 @@ def delete_memos_modal():
             db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
         st.rerun()
 
+# URL 파라미터를 통해 버튼 터치 인식
 if "edit_key" in st.query_params:
     e_key = st.query_params["edit_key"]
     e_subj = st.query_params.get("edit_subj", "")
@@ -253,12 +254,16 @@ period_times = [
     ("8교시", "16:00\n16:50"), ("9교시", "17:00\n17:50")
 ]
 
-now = datetime.now()
-target_date = now + timedelta(weeks=st.session_state.week_offset)
+# 💡 10. 시간 및 그리드 로직 (Timezone-aware로 변경)
+# Korea timezone is UTC+9
+kst_tz = timezone(timedelta(hours=9))
+now_kst = datetime.now(kst_tz) # 한국 시간으로 현재 시각을 가져옴
+
+target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 is_current_week = (st.session_state.week_offset == 0)
-today_idx = now.weekday()
-now_mins = now.hour * 60 + now.minute
+today_idx = now_kst.weekday() # 한국 시간 기준 요일
+now_mins = now_kst.hour * 60 + now_kst.minute # 한국 시간 기준 분(mins)
 active_row, preview_row = None, None
 
 def time_to_mins(t_str):
@@ -268,6 +273,7 @@ def time_to_mins(t_str):
 for row_idx, (period, time_range) in enumerate(period_times):
     start_str, end_str = time_range.split('\n')
     start_m, end_m = time_to_mins(start_str), time_to_mins(end_str)
+    # 한국 시간 기준으로 비교하여 정상 작동
     if start_m <= now_mins <= end_m:
         active_row = row_idx
         if period == "점심": preview_row = row_idx + 1 
