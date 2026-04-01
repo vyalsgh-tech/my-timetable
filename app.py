@@ -1,5 +1,5 @@
 import os
-# 🚀 gRPC 통신 지연 방지 환경변수
+# 🚀 gRPC 통신 지연 및 데드락 방지 환경변수
 os.environ["GRPC_DNS_RESOLVER"] = "native"
 os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "1"
 
@@ -9,6 +9,7 @@ from firebase_admin import credentials, firestore
 import csv
 import base64
 import json
+import textwrap # 🔥 꼬인 비밀키를 복구하기 위한 모듈 추가
 from datetime import datetime, timedelta, timezone
 
 # 1. 페이지 기본 설정
@@ -78,17 +79,28 @@ themes = [
 t = themes[st.session_state.theme_idx]
 st.markdown(f"<style>.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
 
-# 💡 5. Firebase 초기화 (JWT Signature 오류 자동 복구 코드 추가)
+# 💡 5. Firebase 초기화 (🔥 훼손된 비밀키 100% 원상복구 로직 🔥)
 if not firebase_admin._apps:
     try:
         key_dict = json.loads(st.secrets["FIREBASE_KEY"])
-        # 🔥 이 한 줄이 핵심입니다! 꼬여버린 비밀키의 줄바꿈을 강제로 정상화시킵니다.
-        key_dict["private_key"] = key_dict["private_key"].replace('\\n', '\n')
         
+        # Secrets에서 가져온 키 문자열
+        raw_key = key_dict.get("private_key", "")
+        
+        # 키가 손상되었든, 줄바꿈이 없든, 공백이 섞였든 상관없이 완벽한 형태로 재조립합니다.
+        if "BEGIN PRIVATE KEY" in raw_key:
+            # 헤더와 푸터 사이의 '진짜 암호 본문'만 추출
+            body = raw_key.split("BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY")[0]
+            # 쓸데없는 공백, 줄바꿈 기호 전부 삭제
+            clean_body = body.replace(" ", "").replace("\\n", "").replace("\n", "")
+            # 구글 서버가 원하는 완벽한 64글자 단위 줄바꿈으로 재포장
+            key_dict["private_key"] = f"-----BEGIN PRIVATE KEY-----\n{textwrap.fill(clean_body, 64)}\n-----END PRIVATE KEY-----\n"
+
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred)
     except Exception as e:
-        status.error(f"인증 오류: {e}")
+        status.error(f"인증 초기화 오류: {e}")
+        st.stop()
 
 db = firestore.client()
 
@@ -106,6 +118,7 @@ try:
     status.empty()
 except Exception as e: 
     status.error(f"🚨 데이터 연결 실패: {e}")
+    st.stop() # 에러 시 여기서 멈춤
 
 t_custom = custom_data.get(st.session_state.teacher, {})
 memo_count = len(memos_list)
