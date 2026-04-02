@@ -4,7 +4,7 @@ import csv
 import os
 from datetime import datetime, timedelta, timezone
 
-# 1. 페이지 및 모바일 UI 기본 설정
+# 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
 # 상태 초기화
@@ -16,7 +16,7 @@ if 'show_memo' not in st.session_state: st.session_state.show_memo = True
 if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
-if 'memo_expanded' not in st.session_state: st.session_state.memo_expanded = False # 메모장 늘이기/축소 상태
+if 'memo_expanded' not in st.session_state: st.session_state.memo_expanded = False # 메모장 늘이기 상태
 
 themes = [
     { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f', 'text': '#ffffff' },
@@ -27,12 +27,16 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 모바일 최적화 CSS (가독성 및 표 디자인 완전 개선)
+# 💡 애니메이션 제거 & 가독성 극대화 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <style>
+        /* 점멸/페이드인 애니메이션 원천 차단 (빠릿한 반응성) */
+        * {{ animation: none !important; transition: none !important; }}
+        .element-container, .stMarkdown, .stButton {{ animation: none !important; transition: none !important; }}
+        
         .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
-        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp div[data-testid="stMarkdownContainer"] {{ color: {t['text']} !important; }}
+        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
         .block-container {{ padding: 1rem 0.5rem !important; }}
         header {{ visibility: hidden; }}
         
@@ -42,7 +46,9 @@ st.markdown(f"""
         .stButton>button {{ height: 42px !important; border-radius: 8px !important; font-size: 15px !important; font-weight: bold !important; background-color: {t['top']} !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; }}
         .stButton>button[data-testid="baseButton-primary"] {{ background-color: {t['hl_per']} !important; color: #ffffff !important; border: none !important; }}
         
-        div[data-testid="stAlert"] {{ background-color: {t['top']} !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; border-radius: 10px !important; }}
+        /* 🚨 알림창 안의 글씨는 무조건 검은색 굵은 글씨로 고정하여 가독성 확보 */
+        div[data-testid="stAlert"] {{ border-radius: 10px !important; }}
+        div[data-testid="stAlert"] p {{ color: #111111 !important; font-weight: bold !important; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -55,7 +61,7 @@ HEADERS = {
     "Prefer": "return=representation"
 }
 
-# --- 로그인 게이트웨이 ---
+# --- 로그인 ---
 if st.session_state.logged_in_user is None:
     st.markdown(f"<div style='text-align:center; padding: 2rem 0 1rem 0;'><div style='font-size: 3rem;'>🏫</div><h1 style='font-size: 26px; font-weight: 800;'>명덕외고 스마트 시간표</h1></div>", unsafe_allow_html=True)
     tab1, tab2 = st.tabs(["🔐 로그인", "📝 새 계정 등록"])
@@ -87,12 +93,11 @@ if st.session_state.logged_in_user is None:
                 if r.status_code == 200 and len(r.json()) > 0: st.error("이미 등록된 이름입니다.")
                 else:
                     r2 = requests.post(f"{SUPABASE_URL}/rest/v1/users", headers=HEADERS, json={"teacher_name": new_id, "password": new_pw})
-                    if r2.status_code in [200, 201]: st.success("✅ 계정 생성 완료! 로그인 탭에서 접속해주세요.")
+                    if r2.status_code in [200, 201]: st.success("계정 생성 완료! 로그인 탭에서 접속해주세요.")
                     else: st.error("생성 실패.")
     st.stop()
 
-# --- 로그인 성공 후 메인 화면 ---
-
+# --- 메인 데이터 로드 ---
 @st.cache_data
 def load_csv():
     days = ["월", "화", "수", "목", "금"]
@@ -116,13 +121,11 @@ def load_csv():
 
 teachers_data = load_csv()
 
-# DB 데이터 로드
 custom_data = {}
 memos_list = []
 try:
     r_cust = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}", headers=HEADERS)
     if r_cust.status_code == 200: custom_data = {row['date_key']: row['subject'] for row in r_cust.json()}
-    
     r_memo = requests.get(f"{SUPABASE_URL}/rest/v1/memos?teacher_name=eq.{st.session_state.logged_in_user}&order=created_at.desc", headers=HEADERS)
     if r_memo.status_code == 200: memos_list = r_memo.json()
 except: pass
@@ -140,23 +143,19 @@ now_kst = datetime.now(kst_tz)
 target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 
-# --- 모달창 모음 (가독성 개선 및 새로운 메모 기능들) ---
+# --- 모달창 모음 ---
 @st.dialog("📅 내 시간표 직접 수정")
 def edit_timetable_modal():
-    # 💡 모달창 안내문구 가독성 100% 보장 디자인
-    st.markdown(f"<div style='color:{t['text']}; background-color:{t['top']}; padding:12px; border-radius:8px; margin-bottom:15px; font-weight:bold; border-left:4px solid {t['hl_per']};'>💡 수정할 날짜와 교시를 선택하세요.</div>", unsafe_allow_html=True)
+    st.info("수정할 날짜와 교시를 선택하세요.") # 알림창 배경으로 가독성 확보
     c1, c2 = st.columns(2)
-    
     dates_this_week = [(monday + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(5)]
     date_options = {d: f"{days[i]}요일 ({d[5:]})" for i, d in enumerate(dates_this_week)}
     sel_date = c1.selectbox("날짜", dates_this_week, format_func=lambda x: date_options[x])
-    
     valid_periods = [(i+1, p[0]) for i, p in enumerate(period_times) if p[0] not in ["조회", "점심"]]
     p_options = {idx: name for idx, name in valid_periods}
     sel_period = c2.selectbox("교시", list(p_options.keys()), format_func=lambda x: p_options[x])
     
     date_key = f"{sel_date}_{sel_period}"
-    
     current_val = custom_data.get(date_key)
     if current_val == "__STRIKE__": input_val = ""
     elif current_val: input_val = current_val.replace('<br>', '\n')
@@ -183,46 +182,47 @@ def edit_timetable_modal():
         requests.delete(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}&date_key=eq.{date_key}", headers=HEADERS)
         st.rerun()
 
-@st.dialog("➕ 새 메모 작성")
+@st.dialog("➕ 새 메모 추가")
 def add_memo_modal():
     new_text = st.text_area("메모 내용을 입력하세요:", height=100)
     if st.button("💾 저장", use_container_width=True, type="primary"):
         if new_text.strip(): requests.post(f"{SUPABASE_URL}/rest/v1/memos", headers=HEADERS, json={"teacher_name": st.session_state.logged_in_user, "memo_text": new_text.strip()})
         st.rerun()
 
-@st.dialog("✏️ 메모 개별 수정")
-def edit_memos_modal():
-    st.markdown(f"<div style='color:{t['text']}; background-color:{t['top']}; padding:10px; border-radius:5px; margin-bottom:10px;'>수정할 메모를 선택하세요.</div>", unsafe_allow_html=True)
-    if not memos_list:
-        st.info("저장된 메모가 없습니다.")
-        return
-    memo_opts = {m['id']: m['memo_text'][:20] + ("..." if len(m['memo_text'])>20 else "") for m in memos_list}
-    sel_id = st.selectbox("메모 선택", list(memo_opts.keys()), format_func=lambda x: memo_opts[x], label_visibility="collapsed")
-    curr_text = next(m['memo_text'] for m in memos_list if m['id'] == sel_id)
-    new_text = st.text_area("내용 수정:", value=curr_text, height=100)
+@st.dialog("✏️ 메모 수정")
+def edit_memos_modal(memo_id=None, current_text=""):
+    # 외부에서 ID를 안 넘겨주면 직접 고르도록 함
+    if not memo_id:
+        if not memos_list:
+            st.info("저장된 메모가 없습니다.")
+            return
+        memo_opts = {m['id']: m['memo_text'][:15] + "..." for m in memos_list}
+        memo_id = st.selectbox("수정할 메모 선택", list(memo_opts.keys()), format_func=lambda x: memo_opts[x])
+        current_text = next(m['memo_text'] for m in memos_list if m['id'] == memo_id)
+        
+    new_text = st.text_area("내용 수정:", value=current_text, height=100)
     if st.button("💾 저장하기", type="primary", use_container_width=True):
-        if new_text.strip(): requests.patch(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{sel_id}", headers=HEADERS, json={"memo_text": new_text.strip()})
+        if new_text.strip(): requests.patch(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{memo_id}", headers=HEADERS, json={"memo_text": new_text.strip()})
         st.rerun()
 
 @st.dialog("➖ 다중 선택 삭제")
 def delete_memos_modal():
-    st.markdown(f"<div style='color:{t['text']}; background-color:{t['top']}; padding:10px; border-radius:5px; margin-bottom:10px;'>삭제할 메모를 모두 체크하세요.</div>", unsafe_allow_html=True)
+    st.info("삭제할 메모를 모두 체크하세요.")
     to_delete = []
     for m in memos_list:
         if st.checkbox(m['memo_text'], key=f"del_{m['id']}"):
             to_delete.append(m['id'])
-    if st.button("🗑️ 확인 (선택 삭제)", type="primary", use_container_width=True):
+    if st.button("🗑️ 선택 항목 삭제", type="primary", use_container_width=True):
         if to_delete:
             for mid in to_delete: requests.delete(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{mid}", headers=HEADERS)
         st.rerun()
 
 @st.dialog("🗑️ 메모 전체 삭제")
 def delete_all_memos_modal():
-    st.warning("정말로 모든 메모를 비우시겠습니까? (복구 불가)")
-    if st.button("🚨 네, 모두 삭제합니다.", type="primary", use_container_width=True):
+    st.warning("🚨 정말로 모든 메모를 비우시겠습니까? (복구 불가)")
+    if st.button("네, 모두 삭제합니다.", type="primary", use_container_width=True):
         requests.delete(f"{SUPABASE_URL}/rest/v1/memos?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS)
         st.rerun()
-
 
 # --- 상단 헤더 및 메뉴 ---
 col_h1, col_h2 = st.columns([7, 3])
@@ -243,15 +243,21 @@ with r1_c1:
         st.session_state.teacher = selected
         st.rerun()
 with r1_c2:
-    if st.button("◀ 이전", use_container_width=True): st.session_state.week_offset -= 1
+    # 💡 rerun()을 강제 호출하여 화면 갱신 버그 완벽 해결
+    if st.button("◀ 이전", use_container_width=True): 
+        st.session_state.week_offset -= 1
+        st.rerun()
 with r1_c3:
-    # 💡 이번 주일 때는 Primary 컬러로 강조!
+    # 이번 주일 때만 Primary 색상 버튼
     btn_type = "primary" if st.session_state.week_offset == 0 else "secondary"
-    if st.button("이번 주", use_container_width=True, type=btn_type): st.session_state.week_offset = 0
+    if st.button("이번 주", use_container_width=True, type=btn_type): 
+        st.session_state.week_offset = 0
+        st.rerun()
 with r1_c4:
-    if st.button("다음 ▶", use_container_width=True): st.session_state.week_offset += 1
+    if st.button("다음 ▶", use_container_width=True): 
+        st.session_state.week_offset += 1
+        st.rerun()
 with r1_c5:
-    # 💡 팝오버를 use_container_width로 사용하여 가운데 꽉 차고 예쁘게 정렬
     with st.popover("⚙️", use_container_width=True):
         new_theme = st.selectbox("🎨 테마", [th['name'] for th in themes], index=st.session_state.theme_idx)
         if new_theme != themes[st.session_state.theme_idx]['name']:
@@ -311,21 +317,19 @@ for row_idx, (period, time_range) in enumerate(period_times):
         preview_row = row_idx
         break
 
-# 💡 모바일 최적화: 날짜 14px, 시간 13px로 확대 / 셀 테두리 깨짐 방지(box-shadow: inset 적용)
+# 💡 모바일 최적화: 날짜 14px, 시간 13px 큼직하게 + 테두리 깨짐 방지(inset)
 html = f"""
 <style>
     .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 15px; }}
     .mobile-table th {{ border: 1px solid {t['grid']}; padding: 6px 2px; text-align: center; font-size: 16px; height: 50px; }}
-    .mobile-table td {{ border: 1px solid {t['grid']}; padding: 4px; text-align: center; vertical-align: middle; height: 70px; word-break: keep-all; font-weight: bold; font-size: 15px; }}
+    .mobile-table td {{ border: 1px solid {t['grid']}; padding: 4px; text-align: center; vertical-align: middle; height: 70px; word-break: keep-all; font-weight: bold; font-size: 15px; line-height: 1.3; }}
     
-    /* 테두리 대신 안쪽 그림자를 써서 표가 우그러지거나 칸을 벗어나는 것을 100% 방지 */
+    /* 안쪽 그림자(box-shadow inset)를 써서 표 크기가 우그러지는 현상을 완벽 방지 */
     .hl-border-red {{ box-shadow: inset 0 0 0 3px {t['hl_per']} !important; z-index: 10; }}
     .hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}
     .hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}
-    
-    .cell-content {{ display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; line-height: 1.3; }}
 </style>
-<div style="width:100%; overflow-x:auto; background-color:{t['grid']}; padding:2px; border-radius:8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<div style="width:100%; overflow-x:auto; background-color:{t['grid']}; padding:2px; border-radius:8px;">
 <table class="mobile-table">
 """
 
@@ -353,8 +357,8 @@ for row_idx, (period, time_str) in enumerate(period_times):
     p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
     
     start_t, end_t = time_str.split('\n')
-    formatted_time = f"<div style='line-height:1.1; width:100%; padding:0 3px;'><div style='text-align:left;'>{start_t}~</div><div style='text-align:right;'>{end_t}</div></div>"
-    html += f"<td {td_period_class} style='background-color:{p_bg}; color:{p_fg}; font-size:15px;'><b>{period}</b><br><span style='font-size:13px; font-weight:normal; display:inline-block; width:100%;'>{formatted_time}</span></td>"
+    formatted_time = f"<div style='line-height:1.1; width:100%; padding:0 2px;'><div style='text-align:left;'>{start_t}~</div><div style='text-align:right;'>{end_t}</div></div>"
+    html += f"<td {td_period_class} style='background-color:{p_bg}; color:{p_fg};'><b>{period}</b><br><span style='font-size:13px; font-weight:normal; display:inline-block; width:100%;'>{formatted_time}</span></td>"
     
     for col, day in enumerate(days):
         row_num = row_idx + 1
@@ -374,11 +378,10 @@ for row_idx, (period, time_str) in enumerate(period_times):
 
         bg = t['lunch_bg'] if period == "점심" else t['cell_bg']
         fg = t['cell_fg']
-        deco = "none"
+        deco = "line-through" if is_strike else "none"
 
         if is_strike:
             fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
-            deco = "line-through"
             subject = subject if subject else "-"
         elif is_custom: fg = "#e74c3c"
             
@@ -390,7 +393,7 @@ for row_idx, (period, time_str) in enumerate(period_times):
             elif row_idx == preview_row: td_cell_class = "class='hl-border-yellow'"
 
         html += f"<td {td_cell_class} style='background-color:{bg}; color:{fg};'>"
-        html += f"<div class='cell-content' style='text-decoration:{deco};'>{display}</div>"
+        html += f"<div style='text-decoration:{deco}; width:100%; height:100%; display:flex; align-items:center; justify-content:center;'>{display}</div>"
         html += "</td>"
         
     html += "</tr>"
@@ -398,43 +401,53 @@ html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
 
-# --- 시간표 수정 버튼 ---
 st.markdown("<br>", unsafe_allow_html=True)
 if is_my_schedule:
     if st.button("✏️ 이번 주 시간표 직접 수정하기", use_container_width=True, type="primary"):
         edit_timetable_modal()
 
-# --- 💡 전면 개편된 프라이빗 메모장 (가독성/기능 끝판왕) ---
+# --- 💡 조종석 패널이 추가된 프라이빗 메모장 ---
 if st.session_state.show_memo:
     st.markdown("---")
-    st.markdown(f"<h3 style='margin:0; font-size:18px; margin-bottom:8px;'>📝 {st.session_state.logged_in_user} 메모장</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='margin:0; font-size:18px; margin-bottom:10px;'>📝 {st.session_state.logged_in_user} 메모장</h3>", unsafe_allow_html=True)
     
-    # 💡 조종석 패널 (5개의 버튼)
+    # 조종석 (5개 버튼)
     cb1, cb2, cb3, cb4, cb5 = st.columns(5)
     if cb1.button("➕추가", use_container_width=True): add_memo_modal()
     if cb2.button("✏️수정", use_container_width=True): edit_memos_modal()
     if cb3.button("➖선택", use_container_width=True): delete_memos_modal()
     if cb4.button("🗑️전체", use_container_width=True): delete_all_memos_modal()
-    exp_text = "🔼축소" if st.session_state.memo_expanded else "🔽펼침"
+    exp_text = "🔼축소" if st.session_state.memo_expanded else "🔽늘이기"
     if cb5.button(exp_text, use_container_width=True): 
         st.session_state.memo_expanded = not st.session_state.memo_expanded
         st.rerun()
         
     st.markdown("<div style='margin-bottom:5px;'></div>", unsafe_allow_html=True)
     
-    # 💡 메모 출력 구역 (넘버링 + 완벽한 줄간격 통제)
-    max_h = "500px" if st.session_state.memo_expanded else "150px"
-    memo_html = f"<div style='background-color:{t['top']}; padding:15px; border-radius:8px; max-height:{max_h}; overflow-y:auto; box-shadow:inset 0 2px 4px rgba(0,0,0,0.05);'>"
-    if memos_list:
-        for i, m in enumerate(memos_list):
-            num = len(memos_list) - i
-            deco = "line-through" if m.get('is_strike') else "none"
-            color = "#95a5a6" if m.get('is_strike') else t['text']
-            
-            # PC버전과 동일하게 번호 매기기 + 적절한 줄간격(line-height 1.4)
-            memo_html += f"<div style='color:{color}; text-decoration:{deco}; font-size:15px; margin-bottom:8px; line-height:1.4; border-bottom:1px solid {t['grid']}; padding-bottom:8px;'><b>{num}.</b> {m['memo_text']}</div>"
-    else:
-        memo_html += f"<div style='font-size:14px; opacity:0.7; text-align:center;'>저장된 메모가 없습니다. [+추가] 버튼을 눌러보세요!</div>"
-    
-    memo_html += "</div>"
-    st.markdown(memo_html, unsafe_allow_html=True)
+    # 💡 네이티브 스크롤 컨테이너 적용 (글자 잘림 100% 해결)
+    # 확장 시 500px, 축소 시 200px의 높이 고정 스크롤 박스 생성
+    memo_height = 500 if st.session_state.memo_expanded else 200
+    with st.container(height=memo_height, border=True):
+        if memos_list:
+            for i, m in enumerate(memos_list):
+                num = len(memos_list) - i
+                text = m['memo_text']
+                is_strike = m.get('is_strike', False)
+                
+                # 가독성과 줄간격을 위해 세밀하게 조정된 모바일 레이아웃
+                col_txt, col_chk, col_edt = st.columns([7, 1.5, 1.5])
+                with col_txt:
+                    if is_strike: st.markdown(f"<div style='text-decoration: line-through; color: gray; font-size: 15px; line-height: 1.4; padding-top:8px;'><b>{num}.</b> {text}</div>", unsafe_allow_html=True)
+                    else: st.markdown(f"<div style='font-size: 15px; font-weight: bold; line-height: 1.4; padding-top:8px;'><b>{num}.</b> {text}</div>", unsafe_allow_html=True)
+                with col_chk:
+                    # 완료선 긋기 버튼 (터치 시 즉각 반응)
+                    if st.button("✔️", key=f"chk_{m['id']}", use_container_width=True):
+                        requests.patch(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{m['id']}", headers=HEADERS, json={"is_strike": not is_strike})
+                        st.rerun()
+                with col_edt:
+                    # 개별 수정 버튼
+                    if st.button("✏️", key=f"edt_{m['id']}", use_container_width=True):
+                        edit_memos_modal(m['id'], text)
+                st.markdown("---") # 메모 간의 얇은 구분선
+        else:
+            st.info("저장된 메모가 없습니다. [➕추가] 버튼을 눌러 작성해 보세요!")
