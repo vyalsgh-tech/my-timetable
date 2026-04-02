@@ -44,9 +44,6 @@ def verify_and_load_user(user_id):
         u_data = r.json()[0]
         st.session_state.theme_idx = u_data.get('theme_idx', 0)
         st.session_state.font_name = u_data.get('font_name', '맑은 고딕')
-        st.session_state.show_zero = u_data.get('show_zero', False)
-        st.session_state.show_extra = u_data.get('show_extra', False)
-        st.session_state.show_memo = u_data.get('show_memo', True)
         return u_data
     return None
 
@@ -153,20 +150,9 @@ if st.session_state.logged_in_user is None:
                         st.rerun()
                     else: st.error("비밀번호가 일치하지 않습니다.")
                 else: st.error("등록되지 않은 선생님입니다.")
-    with tab2:
-        new_id = st.text_input("사용할 아이디 (성함)", placeholder="예: 표민호")
-        new_pw = st.text_input("사용할 비밀번호", type="password")
-        if st.button("계정 생성하기", use_container_width=True, type="primary"):
-            if new_id and new_pw:
-                r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{new_id}", headers=HEADERS)
-                if r.status_code == 200 and len(r.json()) > 0: st.error("이미 등록된 이름입니다.")
-                else:
-                    r2 = requests.post(f"{SUPABASE_URL}/rest/v1/users", headers=HEADERS, json={"teacher_name": new_id, "password": new_pw})
-                    if r2.status_code in [200, 201]: st.success("계정 생성 완료! 로그인 탭에서 접속해주세요.")
-                    else: st.error("생성 실패.")
     st.stop()
 
-# --- 날짜 계산 ---
+# --- 날짜 및 시간표 로직 ---
 days = ["월", "화", "수", "목", "금"]
 period_times = [
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
@@ -182,7 +168,7 @@ is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
 now_mins = now_kst.hour * 60 + now_kst.minute 
 
-# 💡 글로벌 CSS 설정 (헤더 바짝 붙이기 정밀 조정)
+# 💡 글로벌 CSS 설정 (헤더 및 툴바 460px 고정 및 이름창 120px 정렬)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; }}
@@ -193,23 +179,16 @@ st.markdown(f"""
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 🚨 상단 헤더: 제목 길이에 맞춰 이름창 바짝 붙이기 */
+    /* 🚨 1. 상단 헤더: 제목 옆에 이름창을 460px 툴바 끝선에 맞춰 고정 */
     @media screen and (max-width: 9999px) {{
         div[data-testid="stHorizontalBlock"]:first-of-type {{
             display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-            justify-content: flex-start !important; /* 왼쪽 정렬로 강제 전환 */
-            gap: 8px !important; /* 제목과 이름창 사이 아주 좁은 간격 */
+            justify-content: space-between !important;
+            max-width: 460px !important; width: 100% !important; margin: 0 auto 5px 0 !important;
         }}
-        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ 
-            flex: 0 1 auto !important; /* 필요한 만큼만 공간 차지 */
-            width: auto !important; 
-            min-width: 0 !important; 
-        }}
-        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ 
-            flex: 0 0 100px !important; /* 이름 선택창 폭 100px 고정 */
-            width: 100px !important; 
-            min-width: 100px !important; 
-        }}
+        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ flex: 1 1 auto !important; min-width: 0 !important; width: auto !important; }}
+        /* 이름창 구역: 🌙 아이콘 시작위치에 맞춘 120px 폭 고정 */
+        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 120px !important; min-width: 120px !important; width: 120px !important; }}
     }}
     div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
     div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
@@ -217,9 +196,9 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 렌더링 (제목 바로 옆에 이름창 배치)
+# 1. 상단 헤더 (제목 + 고정된 이름창)
 # ---------------------------------------------------------
-col_h1, col_h2 = st.columns([1, 1]) # CSS에서 비율을 무력화하므로 여기 비율은 무의미함
+col_h1, col_h2 = st.columns([2, 1])
 with col_h1:
     st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
@@ -230,7 +209,7 @@ with col_h2:
         st.rerun()
 
 # ---------------------------------------------------------
-# 2. 🔥 순수 HTML 툴바 & 0초 반응 시간표
+# 2. 🔥 순수 HTML 툴바 (폭 460px 고정)
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 cur_w = st.session_state.week_offset
@@ -241,27 +220,12 @@ link_next = f"/?user={u}&w={cur_w + 1}&t={cur_t}"
 link_today = f"/?user={u}&w=0&t={cur_t}"
 link_set = f"/?user={u}&w={cur_w}&t={cur_t}&action=settings"
 
-is_today = (cur_w == 0)
-bg_today = t['hl_per'] if is_today else "transparent"
-fg_today = "#ffffff" if is_today else t['text']
+bg_today = t['hl_per'] if (cur_w == 0) else "transparent"
+fg_today = "#ffffff" if (cur_w == 0) else t['text']
 
 chk_memo_attr = "checked='checked'" if st.session_state.show_memo else ""
 chk_zero_attr = "checked='checked'" if st.session_state.show_zero else ""
 chk_extra_attr = "checked='checked'" if st.session_state.show_extra else ""
-
-active_row, preview_row = None, None
-for row_idx, (period, time_range) in enumerate(period_times):
-    start_str, end_str = time_range.split('\n')
-    h1, m1 = map(int, start_str.split(':'))
-    h2, m2 = map(int, end_str.split(':'))
-    start_m, end_m = h1 * 60 + m1, h2 * 60 + m2
-    if start_m <= now_mins <= end_m:
-        active_row = row_idx
-        if period == "점심": preview_row = row_idx + 1 
-        break
-    elif now_mins < start_m:
-        preview_row = row_idx
-        break
 
 html_parts = []
 html_parts.append("<style>")
@@ -297,6 +261,7 @@ html_parts.append("<label class='tb-btn' for='chk-extra'>🌙</label>")
 html_parts.append(f"<a class='tb-btn' href='{link_set}' target='_self'>⚙️</a>")
 html_parts.append("</div>")
 
+# 시간표 본문
 html_parts.append(f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'>")
 html_parts.append("<table class='mobile-table'>")
 html_parts.append(f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>")
@@ -309,6 +274,21 @@ for col, day in enumerate(days):
     th_fg = 'white' if (is_current_week and col == today_idx and t['name'] != '웜 파스텔') else t['head_fg']
     html_parts.append(f"<th class='{th_class}' style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>")
 html_parts.append("</tr>")
+
+# 시간표 데이터 매칭
+active_row, preview_row = None, None
+for row_idx, (period, time_range) in enumerate(period_times):
+    start_str, end_str = time_range.split('\n')
+    h1, m1 = map(int, start_str.split(':'))
+    h2, m2 = map(int, end_str.split(':'))
+    start_m, end_m = h1 * 60 + m1, h2 * 60 + m2
+    if start_m <= now_mins <= end_m:
+        active_row = row_idx
+        if period == "점심": preview_row = row_idx + 1 
+        break
+    elif now_mins < start_m:
+        preview_row = row_idx
+        break
 
 base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
 for row_idx, (period, time_str) in enumerate(period_times):
@@ -342,7 +322,7 @@ for row_idx, (period, time_str) in enumerate(period_times):
     html_parts.append("</tr>")
 html_parts.append("</table></div>")
 
-# 메모장 렌더링
+# 메모장
 html_parts.append(f"<div id='memo-section' style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
 if memos_list:
     for i, m in enumerate(memos_list):
