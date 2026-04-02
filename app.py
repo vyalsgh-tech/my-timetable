@@ -32,7 +32,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 [핵심] 초소형 아이콘 UI 및 스마트폰 폰트 최적화 CSS
+# 💡 [초강력 핵심] 스트림릿 모바일 붕괴 방어 & 강제 1줄 압축 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
@@ -45,46 +45,52 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 🚨 가로 메뉴 1줄 강제 압축 (초소형 레이아웃) */
-        div[data-testid="stHorizontalBlock"] {{
+        /* 🚨 8개의 아이콘이 들어간 메뉴바만 정밀 타격하여 1줄로 강제 압축 */
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) {{
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
-            justify-content: space-between !important;
-            gap: 3px !important; /* 버튼 사이 간격 좁힘 */
+            gap: 3px !important;
+            padding: 4px 2px !important;
             background-color: {t['top']} !important;
             border-radius: 6px !important;
-            padding: 5px 3px !important;
             margin-bottom: 8px !important;
         }}
-        div[data-testid="column"] {{
+        
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"] {{
             min-width: 0 !important; 
             padding: 0 !important;
         }}
         
-        /* 1️⃣ 드롭다운 박스 초소형 (이름 3글자+여백) */
-        div[data-testid="column"]:nth-child(1) {{ flex: 0 0 75px !important; }}
+        /* 1️⃣ 드롭다운 박스는 딱 85px로 고정 (화면이 작아져도 안 늘어남) */
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"]:nth-child(1) {{ flex: 0 0 85px !important; }}
+        
+        /* 3️⃣ '이번주' 버튼은 딱 48px로 고정 */
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"]:nth-child(3) {{ flex: 0 0 48px !important; }}
+        
+        /* 2️⃣ 나머지 6개 아이콘은 남은 공간을 똑같이 나눠가짐 */
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"]:not(:nth-child(1)):not(:nth-child(3)) {{ flex: 1 1 0 !important; }}
+        
+        /* 드롭다운 UI 초소형 최적화 */
         div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
+        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 0 0 4px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         
-        /* 2️⃣ 나머지 버튼들 균등 분배 */
-        div[data-testid="column"]:not(:nth-child(1)) {{ flex: 1 1 0 !important; }}
-        
-        /* 버튼 공통 초소형 디자인 */
+        /* 버튼 UI 초소형 최적화 */
         .stButton>button {{ 
             height: 32px !important; 
             border-radius: 4px !important; 
-            font-size: 13px !important; 
+            font-size: 12px !important; 
             font-weight: bold !important; 
             background-color: transparent !important; 
             color: {t['text']} !important; 
             border: 1px solid {t['grid']} !important; 
             padding: 0 !important; 
-            line-height: 1 !important;
+            width: 100% !important;
+            min-width: 0 !important;
         }}
         
-        /* ON 상태 하이라이트 (Primary) */
+        /* ON 상태 하이라이트 */
         .stButton>button[data-testid="baseButton-primary"] {{ 
             background-color: {t['hl_per']} !important; 
             color: #ffffff !important; 
@@ -92,8 +98,8 @@ st.markdown(f"""
         }}
         
         /* 설정 팝오버 아이콘 */
-        div[data-testid="stPopover"] > button {{ font-size: 16px !important; padding: 0 !important; height: 32px !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; }}
-        div[data-testid="stPopover"] svg {{ fill: {t['text']} !important; display: none; }} /* 팝오버 화살표 숨김으로 깔끔하게 */
+        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; border: 1px solid {t['grid']} !important; min-width: 0 !important; width: 100% !important; background-color: transparent !important; color: {t['text']} !important; }}
+        div[data-testid="stPopover"] svg {{ display: none; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -200,7 +206,6 @@ now_kst = datetime.now(kst_tz)
 target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 
-
 # --- 상단 헤더 ---
 col_h1, col_h2 = st.columns([8, 2])
 with col_h1:
@@ -211,10 +216,8 @@ with col_h2:
         st.query_params.clear() 
         st.rerun()
 
-# 💡 [핵심] 초소형 아이콘 전용 1줄 레이아웃 (이름|◀|이번주|▶|📝|☀️|🌙|⚙️)
-# 이름(c1)만 고정 너비를 가지고, 나머지는 동일한 비율로 쪼개어 가짐
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([0.1, 1, 2.5, 1, 1, 1, 1, 1.2])
-
+# 💡 강제 1줄 압축 아이콘 배열 (무조건 8개의 컬럼을 사용하여 CSS 트리거 발동)
+c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
 with c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
@@ -277,7 +280,6 @@ with c8:
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
                 st.success("완료!")
 
-
 # --- 시간표 렌더링 (뷰어 전용) ---
 is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
@@ -297,7 +299,6 @@ for row_idx, (period, time_range) in enumerate(period_times):
         preview_row = row_idx
         break
 
-# 💡 스마트폰 최적화 폰트 사이즈 (요일 15px, 날짜 12px, 교시 14px, 시간 11px, 과목 14px)
 html = f"""
 <style>
     .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }}
@@ -374,7 +375,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
             elif row_idx == preview_row: td_cell_class = "class='hl-border-yellow'"
 
         html += f"<td {td_cell_class} style='background-color:{bg}; color:{fg};'>"
-        # 💡 편집 없는 텍스트 전용 출력 (과목 폰트 14px)
         html += f"<div style='text-decoration:{deco}; font-size:14px; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div>"
         html += "</td>"
         
