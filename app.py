@@ -182,7 +182,7 @@ is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
 now_mins = now_kst.hour * 60 + now_kst.minute 
 
-# 💡 글로벌 CSS 설정 (헤더 수직 정렬 정밀 조정)
+# 💡 글로벌 CSS 설정 (헤더 바짝 붙이기 정밀 조정)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; }}
@@ -193,15 +193,23 @@ st.markdown(f"""
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 🚨 상단 헤더 정밀 튜닝: 이름 선택창을 아래 툴바 끝선에 맞춤 */
+    /* 🚨 상단 헤더: 제목 길이에 맞춰 이름창 바짝 붙이기 */
     @media screen and (max-width: 9999px) {{
         div[data-testid="stHorizontalBlock"]:first-of-type {{
             display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-            justify-content: space-between !important;
+            justify-content: flex-start !important; /* 왼쪽 정렬로 강제 전환 */
+            gap: 8px !important; /* 제목과 이름창 사이 아주 좁은 간격 */
         }}
-        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ flex: 2 1 auto !important; min-width: 0 !important; width: auto !important; }}
-        /* 이름창 구역: 딱 🌙 아이콘 위치부터 끝까지 오는 적정 폭(115px) 확보 */
-        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 115px !important; min-width: 115px !important; width: 115px !important; }}
+        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ 
+            flex: 0 1 auto !important; /* 필요한 만큼만 공간 차지 */
+            width: auto !important; 
+            min-width: 0 !important; 
+        }}
+        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ 
+            flex: 0 0 100px !important; /* 이름 선택창 폭 100px 고정 */
+            width: 100px !important; 
+            min-width: 100px !important; 
+        }}
     }}
     div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
     div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
@@ -209,11 +217,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 렌더링 (제목 + 정렬된 이름선택창)
+# 1. 상단 헤더 렌더링 (제목 바로 옆에 이름창 배치)
 # ---------------------------------------------------------
-col_h1, col_h2 = st.columns([2, 1])
+col_h1, col_h2 = st.columns([1, 1]) # CSS에서 비율을 무력화하므로 여기 비율은 무의미함
 with col_h1:
-    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
     selected = st.selectbox("교사", teacher_list, index=idx, label_visibility="collapsed")
@@ -237,12 +245,10 @@ is_today = (cur_w == 0)
 bg_today = t['hl_per'] if is_today else "transparent"
 fg_today = "#ffffff" if is_today else t['text']
 
-# 체크박스 초기 상태
 chk_memo_attr = "checked='checked'" if st.session_state.show_memo else ""
 chk_zero_attr = "checked='checked'" if st.session_state.show_zero else ""
 chk_extra_attr = "checked='checked'" if st.session_state.show_extra else ""
 
-# 시간표 활성 교시 계산
 active_row, preview_row = None, None
 for row_idx, (period, time_range) in enumerate(period_times):
     start_str, end_str = time_range.split('\n')
