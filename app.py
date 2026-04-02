@@ -1,19 +1,13 @@
-import os
-# 🚀 gRPC 통신 지연 방지 환경변수
-os.environ["GRPC_DNS_RESOLVER"] = "native"
-
 import streamlit as st
-import firebase_admin
-from firebase_admin import credentials, firestore
+import requests
 import csv
+import os
 import base64
-import json
 from datetime import datetime, timedelta, timezone
 
-# 1. 페이지 기본 설정
-st.set_page_config(page_title="모바일 시간표", page_icon="📅", layout="centered")
+# 1. 페이지 및 모바일 UI 설정
+st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 2. 모바일 최적화 CSS
 st.markdown("""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <style>
@@ -32,9 +26,69 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-status = st.empty()
+# 2. Supabase 통신 기본 설정
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+}
 
-# 3. CSV 데이터 로딩
+# 3. 로그인 게이트웨이
+if 'logged_in_user' not in st.session_state:
+    st.session_state.logged_in_user = None
+
+if st.session_state.logged_in_user is None:
+    st.title("🔒 명덕외고 시간표 접속")
+    tab1, tab2 = st.tabs(["로그인", "새 계정 생성"])
+    
+    with tab1:
+        st.info("선생님의 성함을 입력해 주세요. (예: 표민호)")
+        login_id = st.text_input("아이디 (이름)", key="l_id")
+        login_pw = st.text_input("비밀번호", type="password", key="l_pw")
+        if st.button("로그인", use_container_width=True):
+            r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{login_id}", headers=HEADERS)
+            if r.status_code == 200 and len(r.json()) > 0:
+                user_data = r.json()[0]
+                if user_data['password'] == login_pw:
+                    # 로그인 성공 시 개인 설정값 모두 불러오기
+                    st.session_state.logged_in_user = login_id
+                    st.session_state.teacher = login_id
+                    st.session_state.theme_idx = user_data.get('theme_idx', 0)
+                    st.session_state.font_name = user_data.get('font_name', '맑은 고딕')
+                    st.session_state.show_zero = user_data.get('show_zero', False)
+                    st.session_state.show_extra = user_data.get('show_extra', False)
+                    st.session_state.show_memo = user_data.get('show_memo', True)
+                    st.rerun()
+                else:
+                    st.error("비밀번호가 틀렸습니다.")
+            else:
+                st.error("등록되지 않은 선생님입니다.")
+                
+    with tab2:
+        new_id = st.text_input("사용할 아이디 (이름)", key="n_id")
+        new_pw = st.text_input("사용할 비밀번호", type="password", key="n_pw")
+        if st.button("계정 생성", use_container_width=True):
+            if not new_id.strip() or not new_pw.strip():
+                st.warning("아이디와 비밀번호를 모두 입력하세요.")
+            else:
+                r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{new_id}", headers=HEADERS)
+                if r.status_code == 200 and len(r.json()) > 0:
+                    st.error("이미 등록된 이름입니다.")
+                else:
+                    payload = {"teacher_name": new_id, "password": new_pw}
+                    r2 = requests.post(f"{SUPABASE_URL}/rest/v1/users", headers=HEADERS, json=payload)
+                    if r2.status_code in [200, 201]:
+                        st.success("✅ 계정이 생성되었습니다! [로그인] 탭으로 이동해주세요.")
+                    else:
+                        st.error("생성 실패. 서버 연결을 확인하세요.")
+    st.stop()
+
+# --- 로그인 성공 후 메인 화면 ---
+
+# 4. CSV 데이터 로딩
 @st.cache_data
 def load_csv():
     days = ["월", "화", "수", "목", "금"]
@@ -58,14 +112,7 @@ def load_csv():
 
 teachers_data = load_csv()
 
-# 4. 상태 관리 초기화
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
-if 'show_zero' not in st.session_state: st.session_state.show_zero = False
-if 'show_extra' not in st.session_state: st.session_state.show_extra = False
-if 'show_memo' not in st.session_state: st.session_state.show_memo = True
-if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
-if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
-if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
 
 themes = [
     { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f' },
@@ -77,46 +124,27 @@ themes = [
 t = themes[st.session_state.theme_idx]
 st.markdown(f"<style>.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
 
-# 💡 5. Firebase 초기화 (깔끔하고 완벽한 기본 방식)
-if not firebase_admin._apps:
-    try:
-        key_dict = json.loads(st.secrets["FIREBASE_KEY"])
-        # 혹시 모를 문자열 이스케이프 방어 코드
-        if "\\n" in key_dict["private_key"]:
-            key_dict["private_key"] = key_dict["private_key"].replace('\\n', '\n')
-            
-        cred = credentials.Certificate(key_dict)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        status.error(f"🚨 인증 키 오류 (Secrets 설정을 확인하세요): {e}")
-        st.stop()
-
-db = firestore.client()
-
-# 6. 클라우드 데이터 선행 로드
+# 5. DB 데이터 실시간 연동
 custom_data = {}
 memos_list = []
 try:
-    docs = db.collection('custom_data').get(timeout=5)
-    for doc in docs: 
-        custom_data[doc.id] = doc.to_dict()
+    r_cust = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}", headers=HEADERS)
+    if r_cust.status_code == 200:
+        custom_data = {row['date_key']: row['subject'] for row in r_cust.json()}
     
-    memo_doc = db.collection('memos').document(st.session_state.teacher).get(timeout=5)
-    if memo_doc.exists: 
-        memos_list = memo_doc.to_dict().get('memos_list', [])
-    status.empty() # 통신 성공 시 로딩 메시지 삭제
-except Exception as e: 
-    status.error(f"🚨 데이터베이스 연결 실패: {e}")
-    st.stop()
+    r_memo = requests.get(f"{SUPABASE_URL}/rest/v1/memos?teacher_name=eq.{st.session_state.logged_in_user}&order=created_at.desc", headers=HEADERS)
+    if r_memo.status_code == 200:
+        memos_list = r_memo.json()
+except Exception:
+    pass
 
-t_custom = custom_data.get(st.session_state.teacher, {})
 memo_count = len(memos_list)
 
-# 7. 모달창 설정
+# 6. 모달창 (본인 계정만 동작함)
 @st.dialog("일정 수정")
 def edit_modal(date_key, current_val):
     date_part, period_part = date_key.split('_')
-    st.caption(f"{date_part} | {period_part}교시")
+    st.caption(f"[{st.session_state.teacher} 선생님] {date_part} | {period_part}교시")
     input_val = current_val if current_val != "__STRIKE__" else ""
     input_val = input_val.replace('<br>', '\n')
     
@@ -124,63 +152,45 @@ def edit_modal(date_key, current_val):
     
     c1, c2, c3 = st.columns(3)
     if c1.button("✏️수정", use_container_width=True):
-        if new_subj.strip(): db.collection('custom_data').document(st.session_state.teacher).set({date_key: new_subj.strip()}, merge=True)
+        if new_subj.strip():
+            chk = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}&date_key=eq.{date_key}", headers=HEADERS).json()
+            if chk: requests.patch(f"{SUPABASE_URL}/rest/v1/custom_schedule?id=eq.{chk[0]['id']}", headers=HEADERS, json={"subject": new_subj.strip()})
+            else: requests.post(f"{SUPABASE_URL}/rest/v1/custom_schedule", headers=HEADERS, json={"teacher_name": st.session_state.teacher, "date_key": date_key, "subject": new_subj.strip()})
         st.rerun()
     if c2.button("✔️완결", use_container_width=True):
-        db.collection('custom_data').document(st.session_state.teacher).set({date_key: "__STRIKE__"}, merge=True)
+        chk = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}&date_key=eq.{date_key}", headers=HEADERS).json()
+        if chk: requests.patch(f"{SUPABASE_URL}/rest/v1/custom_schedule?id=eq.{chk[0]['id']}", headers=HEADERS, json={"subject": "__STRIKE__"})
+        else: requests.post(f"{SUPABASE_URL}/rest/v1/custom_schedule", headers=HEADERS, json={"teacher_name": st.session_state.teacher, "date_key": date_key, "subject": "__STRIKE__"})
         st.rerun()
-    if c3.button("🗑️삭제", use_container_width=True):
-        db.collection('custom_data').document(st.session_state.teacher).update({date_key: firestore.DELETE_FIELD})
+    if c3.button("🗑️복구", use_container_width=True):
+        requests.delete(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}&date_key=eq.{date_key}", headers=HEADERS)
         st.rerun()
 
 @st.dialog("메모 관리")
-def memo_modal(idx):
-    idx = int(idx)
-    if idx < 0 or idx >= len(memos_list): return
-    current_memo = memos_list[idx]
-    is_strike = current_memo.get('strike', False)
+def memo_modal(memo_id):
+    memo_id = int(memo_id)
+    current_memo = next((m for m in memos_list if m['id'] == memo_id), None)
+    if not current_memo: return
+    is_strike = current_memo.get('is_strike', False)
     
-    new_text = st.text_area("메모 수정:", value=current_memo.get('text', ''), label_visibility="collapsed", height=80)
+    new_text = st.text_area("메모 수정:", value=current_memo.get('memo_text', ''), label_visibility="collapsed", height=80)
     
     c1, c2, c3 = st.columns(3)
     if c1.button("✏️수정", use_container_width=True):
-        if new_text.strip():
-            memos_list[idx]['text'] = new_text.strip()
-            db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
+        if new_text.strip(): requests.patch(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{memo_id}", headers=HEADERS, json={"memo_text": new_text.strip()})
         st.rerun()
     if c2.button("✔️완결", use_container_width=True):
-        memos_list[idx]['strike'] = not is_strike
-        db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
+        requests.patch(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{memo_id}", headers=HEADERS, json={"is_strike": not is_strike})
         st.rerun()
     if c3.button("🗑️삭제", use_container_width=True):
-        memos_list.pop(idx)
-        db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
+        requests.delete(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{memo_id}", headers=HEADERS)
         st.rerun()
 
 @st.dialog("새 메모 추가")
 def add_memo_modal():
     new_text = st.text_area("메모 내용을 입력하세요:", height=80)
     if st.button("💾 저장", use_container_width=True):
-        if new_text.strip():
-            memos_list.insert(0, {'text': new_text.strip(), 'strike': False, 'important': False})
-            db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
-        st.rerun()
-
-@st.dialog("메모 다중 삭제")
-def delete_memos_modal():
-    st.markdown("<span style='font-size:13px;'>삭제할 메모를 선택하세요.</span>", unsafe_allow_html=True)
-    to_delete = []
-    for i, m in enumerate(memos_list):
-        num = len(memos_list) - i
-        short_text = m.get('text', '')
-        if len(short_text) > 15: short_text = short_text[:15] + "..."
-        if st.checkbox(f"{num}. {short_text}", key=f"del_cb_{i}"):
-            to_delete.append(i)
-    st.markdown("---")
-    if st.button("🗑️ 확인 (선택 삭제)", use_container_width=True):
-        if to_delete:
-            for i in sorted(to_delete, reverse=True): memos_list.pop(i)
-            db.collection('memos').document(st.session_state.teacher).set({'memos_list': memos_list})
+        if new_text.strip(): requests.post(f"{SUPABASE_URL}/rest/v1/memos", headers=HEADERS, json={"teacher_name": st.session_state.logged_in_user, "memo_text": new_text.strip()})
         st.rerun()
 
 if "edit_key" in st.query_params:
@@ -196,28 +206,24 @@ elif "action" in st.query_params:
     act = st.query_params["action"]
     st.query_params.clear()
     if act == "add_memo": add_memo_modal()
-    elif act == "del_memo": delete_memos_modal()
 
-# 8. 로고 및 헤더 삽입
-logo_html = "📅&nbsp;"
-if os.path.exists("logo.jpg"):
-    with open("logo.jpg", "rb") as f:
-        logo_b64 = base64.b64encode(f.read()).decode()
-        logo_html = f"<img src='data:image/jpeg;base64,{logo_b64}' width='22' style='border-radius:4px; margin-right:6px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);'>"
+# 7. 헤더 및 로그아웃
+col_h1, col_h2 = st.columns([7, 3])
+with col_h1:
+    logo_html = "🏫&nbsp;"
+    st.markdown(f"<div style='color:{t['head_fg']}; font-size:16px; font-weight:bold; margin-top:5px;'>{logo_html} 2026학년도 1학기 시간표</div>", unsafe_allow_html=True)
+with col_h2:
+    if st.button("🔒 로그아웃", use_container_width=True):
+        st.session_state.logged_in_user = None
+        st.rerun()
 
-st.markdown(f"""
-<div style='color:{t['head_fg']}; font-size:16px; font-weight:bold; margin-bottom:12px; display:flex; align-items:center;'>
-    {logo_html} 2026학년도 1학기 시간표
-</div>
-""", unsafe_allow_html=True)
-
-# 9. 상단 메뉴 구성
+# 8. 개인화된 상단 메뉴
 st.markdown(f"<div style='background-color:{t['top']}; padding:8px; border-radius:10px; margin-bottom:8px;'>", unsafe_allow_html=True)
-
 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns([1.8, 0.8, 0.8, 0.8, 0.8])
 with r1_c1:
-    teacher_list = list(teachers_data.keys()) if teachers_data else ["표민호"]
-    selected = st.selectbox("교사", teacher_list, index=teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0, label_visibility="collapsed")
+    teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
+    idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
+    selected = st.selectbox("교사", teacher_list, index=idx, label_visibility="collapsed")
     if selected != st.session_state.teacher:
         st.session_state.teacher = selected
         st.rerun()
@@ -229,29 +235,45 @@ with r1_c4:
     if st.button("▶", use_container_width=True): st.session_state.week_offset += 1
 with r1_c5:
     with st.popover("⚙️"):
+        # 설정 변경 시 DB에 즉시 업데이트
         new_theme = st.selectbox("🎨 테마", [th['name'] for th in themes], index=st.session_state.theme_idx)
         if new_theme != themes[st.session_state.theme_idx]['name']:
-            st.session_state.theme_idx = [th['name'] for th in themes].index(new_theme)
+            new_idx = [th['name'] for th in themes].index(new_theme)
+            requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"theme_idx": new_idx})
+            st.session_state.theme_idx = new_idx
             st.rerun()
+            
         new_font = st.selectbox("A 폰트", ["맑은 고딕", "바탕", "돋움", "굴림", "Arial"], index=["맑은 고딕", "바탕", "돋움", "굴림", "Arial"].index(st.session_state.font_name))
         if new_font != st.session_state.font_name:
+            requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
             st.session_state.font_name = new_font
             st.rerun()
 
 r2_c1, r2_c2, r2_c3 = st.columns(3)
 with r2_c1:
-    m_icon = f"📝 메모({memo_count}) ON" if st.session_state.show_memo else f"📝 메모({memo_count}) OFF"
-    if st.button(m_icon, use_container_width=True): st.session_state.show_memo = not st.session_state.show_memo; st.rerun()
+    m_icon = f"📝 내 메모({memo_count}) ON" if st.session_state.show_memo else f"📝 내 메모({memo_count}) OFF"
+    if st.button(m_icon, use_container_width=True):
+        new_val = not st.session_state.show_memo
+        requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_memo": new_val})
+        st.session_state.show_memo = new_val
+        st.rerun()
 with r2_c2:
     z_icon = "☀️ 조회 ON" if st.session_state.show_zero else "☀️ 조회 OFF"
-    if st.button(z_icon, use_container_width=True): st.session_state.show_zero = not st.session_state.show_zero; st.rerun()
+    if st.button(z_icon, use_container_width=True):
+        new_val = not st.session_state.show_zero
+        requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_zero": new_val})
+        st.session_state.show_zero = new_val
+        st.rerun()
 with r2_c3:
     e_icon = "🌙 8,9교시 ON" if st.session_state.show_extra else "🌙 8,9교시 OFF"
-    if st.button(e_icon, use_container_width=True): st.session_state.show_extra = not st.session_state.show_extra; st.rerun()
-
+    if st.button(e_icon, use_container_width=True):
+        new_val = not st.session_state.show_extra
+        requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_extra": new_val})
+        st.session_state.show_extra = new_val
+        st.rerun()
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 10. 시간 및 그리드 로직
+# 9. 시간 및 그리드 로직
 days = ["월", "화", "수", "목", "금"]
 period_times = [
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
@@ -262,7 +284,6 @@ period_times = [
 
 kst_tz = timezone(timedelta(hours=9))
 now_kst = datetime.now(kst_tz) 
-
 target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 is_current_week = (st.session_state.week_offset == 0)
@@ -285,7 +306,7 @@ for row_idx, (period, time_range) in enumerate(period_times):
         preview_row = row_idx
         break
 
-# 11. HTML 표 렌더링
+# 10. HTML 표 렌더링
 html = f"""
 <style>
     .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: clamp(10px, 3vw, 13px); }}
@@ -310,6 +331,8 @@ for col, day in enumerate(days):
 html += "</tr>"
 
 base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
+# 🔥 다른 사람 시간표를 볼 때는 클릭(수정) 불가하도록 철저히 막음
+is_my_schedule = (st.session_state.teacher == st.session_state.logged_in_user)
 
 for row_idx, (period, time_str) in enumerate(period_times):
     if period == "조회" and not st.session_state.show_zero: continue
@@ -332,18 +355,14 @@ for row_idx, (period, time_str) in enumerate(period_times):
         subject = ""
         if period not in ["점심", "조회"]:
             s_idx = row_num - 2 if row_num < 6 else row_num - 3
-            if s_idx < len(base_schedule.get(day, [])):
-                subject = base_schedule[day][s_idx]
+            if s_idx < len(base_schedule.get(day, [])): subject = base_schedule[day][s_idx]
 
-        is_strike = False
-        is_custom = False
+        is_strike, is_custom = False, False
 
-        if date_key in t_custom:
-            val = t_custom[date_key]
-            if val == "__STRIKE__":
-                is_strike = True; is_custom = True
-            else:
-                subject = val; is_custom = True
+        if date_key in custom_data:
+            val = custom_data[date_key]
+            if val == "__STRIKE__": is_strike, is_custom = True, True
+            else: subject, is_custom = val, True
 
         bg = t['lunch_bg'] if period == "점심" else t['cell_bg']
         fg = t['cell_fg']
@@ -365,7 +384,9 @@ for row_idx, (period, time_str) in enumerate(period_times):
 
         link_href = f"/?edit_key={date_key}&edit_subj={subject}"
         html += f"<td {td_cell_class} style='background-color:{bg}; color:{fg}; font-weight:bold;'>"
-        if period not in ["점심", "조회"]:
+        
+        # 💡 본인 시간표일 때만 터치(링크) 기능 활성화
+        if is_my_schedule and period not in ["점심", "조회"]:
             html += f"<a href='{link_href}' target='_self' class='cell-link'><div class='cell-content' style='text-decoration:{deco}; line-height:1.2;'>{display}</div></a>"
         else:
             html += f"<div class='cell-content' style='text-decoration:{deco}; line-height:1.2;'>{display}</div>"
@@ -376,22 +397,20 @@ html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
 
-# 12. 클릭 가능한 인터랙티브 메모장
+# 11. 개인 전용 메모장 (타인 열람 절대 불가)
 if st.session_state.show_memo:
-    memo_html = f"<div style='background-color:{t['bg']}; padding:8px; border: 2px solid {t['grid']}; border-top:none; border-bottom-left-radius:8px; border-bottom-right-radius:8px;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px;'><div style='font-size:14px; font-weight:bold; color:{t['head_fg']};'>📝 메모</div><div style='display: flex; gap: 8px;'><a href='/?action=add_memo' target='_self' class='action-btn' style='background-color:{t['top']}; color:{t['head_fg']} !important; padding:4px 12px; border-radius:5px; font-size:12px; border:1px solid {t['grid']}; box-shadow: 0 1px 2px rgba(0,0,0,0.2);'>➕</a><a href='/?action=del_memo' target='_self' class='action-btn' style='background-color:{t['top']}; color:{t['head_fg']} !important; padding:4px 12px; border-radius:5px; font-size:12px; border:1px solid {t['grid']}; box-shadow: 0 1px 2px rgba(0,0,0,0.2);'>➖</a></div></div><div style='max-height:160px; overflow-y:auto;'>"
+    memo_html = f"<div style='background-color:{t['bg']}; padding:8px; border: 2px solid {t['grid']}; border-top:none; border-bottom-left-radius:8px; border-bottom-right-radius:8px;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px;'><div style='font-size:14px; font-weight:bold; color:{t['head_fg']};'>📝 {st.session_state.logged_in_user} 선생님의 프라이빗 메모장</div><div style='display: flex; gap: 8px;'><a href='/?action=add_memo' target='_self' class='action-btn' style='background-color:{t['top']}; color:{t['head_fg']} !important; padding:4px 12px; border-radius:5px; font-size:12px; border:1px solid {t['grid']}; box-shadow: 0 1px 2px rgba(0,0,0,0.2);'>➕ 메모 추가</a></div></div><div style='max-height:160px; overflow-y:auto;'>"
     if memos_list:
         for i, m in enumerate(memos_list):
             num = len(memos_list) - i
-            text = m.get('text', '')
-            is_strike = m.get('strike', False)
-            is_imp = m.get('important', False)
-            prefix = "⭐ " if is_imp else ""
+            text = m.get('memo_text', '')
+            is_strike = m.get('is_strike', False)
             text_color = "#95a5a6" if is_strike else t['head_fg']
             deco = "line-through" if is_strike else "none"
-            link_href = f"/?memo_idx={i}"
-            memo_html += f"<a href='{link_href}' target='_self' class='memo-link'><div style='color:{text_color}; text-decoration:{deco}; font-size:clamp(12px, 3.8vw, 14px); margin-bottom:6px; line-height: 1.4; padding:6px; background-color:{t['top']}; border-radius:5px;'><b>{num}.</b> {prefix}{text}</div></a>"
+            link_href = f"/?memo_idx={m['id']}"
+            memo_html += f"<a href='{link_href}' target='_self' class='memo-link'><div style='color:{text_color}; text-decoration:{deco}; font-size:clamp(12px, 3.8vw, 14px); margin-bottom:6px; line-height: 1.4; padding:6px; background-color:{t['top']}; border-radius:5px;'><b>{num}.</b> {text}</div></a>"
     else:
-        memo_html += f"<div style='font-size:12px; color:{t['head_fg']}; text-align:center; padding:10px;'>저장된 메모가 없습니다.</div>"
+        memo_html += f"<div style='font-size:12px; color:{t['head_fg']}; text-align:center; padding:10px;'>저장된 메모가 없습니다. 첫 메모를 작성해보세요!</div>"
     
     memo_html += "</div></div>"
     st.markdown(memo_html, unsafe_allow_html=True)
