@@ -32,7 +32,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 🚨 [최종 보스 방어] 640px 모바일 강제 붕괴를 시스템 뿌리에서부터 박살내는 절대 CSS
+# 🚨 [최종 보스 방어] 640px 이하 모바일 강제 붕괴를 시스템 뿌리에서부터 박살내는 절대 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
@@ -45,51 +45,53 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 🔥 스트림릿의 640px 이하 모바일 반응형 강제 줄바꿈을 완벽히 무력화 */
+        /* 🔥 1단계: 스트림릿의 모든 100% 확장 속성을 글로벌로 무력화 */
         @media screen and (max-width: 9999px) {{
             div[data-testid="stHorizontalBlock"] {{
                 display: flex !important;
                 flex-direction: row !important;
-                flex-wrap: nowrap !important;
+                flex-wrap: nowrap !important; /* 무조건 한 줄 */
                 align-items: center !important;
                 gap: 3px !important;
+                width: 100% !important;
                 overflow: visible !important;
             }}
-            div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-                min-width: 0 !important;
-                padding: 0 1px !important;
-                margin: 0 !important;
+            div[data-testid="column"] {{
                 width: auto !important; /* 100% 강제 확장 분쇄 */
+                min-width: 0 !important;
+                margin: 0 !important;
+                padding: 0 1px !important;
             }}
             
-            /* 💡 1. 상단 헤더 영역 고정 (제목 넓게, 로그아웃 버튼 35px) */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(1) {{ flex: 1 1 auto !important; width: auto !important; }}
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(2) {{ flex: 0 0 35px !important; width: 35px !important; }}
+            /* 💡 2단계: 최신 문법(:has) 없이, 순수 형제(Sibling) 갯수로 정밀 타격하여 비율 고정 */
             
-            /* 💡 2. 조종석 메뉴바 완벽 1줄 고정 (최신 CSS 문법 버림, 직관적 픽셀 고정) */
+            /* (1) 헤더 영역 (자식이 2개인 컬럼들) */
+            div[data-testid="column"]:first-child:nth-last-child(2) {{ flex: 1 1 0px !important; }}
+            div[data-testid="column"]:first-child:nth-last-child(2) ~ div[data-testid="column"]:nth-child(2) {{ flex: 0 0 35px !important; max-width: 35px !important; }}
+            
+            /* (2) 조종석 메뉴바 영역 (자식이 8개인 컬럼들) */
+            div[data-testid="column"]:first-child:nth-last-child(8),
+            div[data-testid="column"]:first-child:nth-last-child(8) ~ div[data-testid="column"] {{ flex: 1 1 0px !important; }} /* 나머지 아이콘들 균등 분배 */
+            
+            /* 이름칸 (딱 76px 방어벽) */
+            div[data-testid="column"]:first-child:nth-last-child(8) {{ flex: 0 0 76px !important; max-width: 76px !important; }}
+            
+            /* 이번주 버튼칸 (딱 46px 방어벽) */
+            div[data-testid="column"]:first-child:nth-last-child(8) ~ div[data-testid="column"]:nth-child(3) {{ flex: 0 0 46px !important; max-width: 46px !important; }}
+            
+            /* 💡 3단계: 조종석 배경색만 칠하기 (DOM 순서 기반) */
             .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="stHorizontalBlock"] {{
                 background-color: {t['top']} !important;
                 border-radius: 6px !important;
-                padding: 4px 2px !important;
+                padding: 5px 3px !important;
                 margin-bottom: 8px !important;
             }}
-            /* 이름 선택바 딱 76px 방어벽 */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(1) {{ flex: 0 0 76px !important; width: 76px !important; }}
-            /* ◀ 화살표 딱 30px */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(2) {{ flex: 0 0 30px !important; width: 30px !important; }}
-            /* 이번주 버튼 딱 46px 방어벽 */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(3) {{ flex: 0 0 46px !important; width: 46px !important; }}
-            /* ▶ 화살표 딱 30px */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(4) {{ flex: 0 0 30px !important; width: 30px !important; }}
-            /* 나머지 아이콘 버튼(📝,☀️,🌙,⚙️)은 빈 공간을 공평하게 분배하여 절대 화면 밖으로 나가지 않음 */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(n+5) {{ flex: 1 1 0% !important; width: auto !important; }}
         }}
         
-        /* 드롭다운 박스 초소형 디자인 (이름 3글자+화살표 최적화) */
+        /* 💡 4단계: 드롭다운 및 버튼 내부 강제 팽창 방지 */
         div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 30px !important; width: 100% !important; min-width: 0 !important; }}
         div[data-baseweb="select"] > div {{ min-height: 30px !important; padding: 0 0 0 4px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         
-        /* 버튼 공통 초소형 디자인 */
         .stButton>button {{ 
             height: 30px !important; 
             border-radius: 4px !important; 
@@ -102,18 +104,19 @@ st.markdown(f"""
             line-height: 1 !important;
             width: 100% !important;
             min-width: 0 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: clip !important;
         }}
         
-        /* ON 상태 하이라이트 */
         .stButton>button[data-testid="baseButton-primary"] {{ 
             background-color: {t['hl_per']} !important; 
             color: #ffffff !important; 
             border: 1px solid {t['hl_per']} !important; 
         }}
         
-        /* 설정 팝오버 아이콘 */
         div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 30px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important; }}
-        div[data-testid="stPopover"] svg {{ display: none; }}
+        div[data-testid="stPopover"] svg {{ display: none !important; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -126,7 +129,6 @@ HEADERS = {
     "Prefer": "return=representation"
 }
 
-# --- DB 로그인 인증 함수 ---
 def verify_and_load_user(user_id):
     r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{user_id}", headers=HEADERS)
     if r.status_code == 200 and len(r.json()) > 0:
@@ -222,10 +224,10 @@ monday = target_date - timedelta(days=target_date.weekday())
 
 
 # ---------------------------------------------------------
-# 🚨 CSS가 이 위치를 기준으로 정확히 인식하도록 DOM 순서를 통제합니다.
+# 🚨 CSS가 이 위치를 기준으로 정확히 인식하도록 DOM 구조를 통제합니다.
 # ---------------------------------------------------------
 
-# [DOM 자식 2번] 상단 헤더
+# [DOM 구조 1번] 상단 헤더 (제목 + 로그아웃)
 col_h1, col_h2 = st.columns(2)
 with col_h1:
     st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
@@ -235,7 +237,7 @@ with col_h2:
         st.query_params.clear() 
         st.rerun()
 
-# [DOM 자식 3번] 8개 버튼 메뉴바 (무조건 1줄 보장)
+# [DOM 구조 2번] 8개 버튼 조종석 메뉴바 (어떠한 브라우저에서도 무조건 1줄 보장)
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
 
 with c1:
@@ -406,7 +408,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
 html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
-
 
 # --- 프라이빗 메모장 (읽기 전용 뷰어) ---
 if st.session_state.show_memo:
