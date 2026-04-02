@@ -32,7 +32,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 🚨 [최종 보스 방어] 640px 이하 모바일 강제 붕괴를 시스템 뿌리에서부터 박살내는 절대 CSS
+# 🚨 [혁신적 UI] 왼쪽 정렬 및 공간 최적화를 적용한 강제 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
@@ -45,57 +45,65 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 🔥 1단계: 스트림릿의 모든 100% 확장 속성을 글로벌로 무력화 */
+        /* 🚨 어떠한 화면에서도 세로로 꺾이는 현상을 절대 방지 */
         @media screen and (max-width: 9999px) {{
-            div[data-testid="stHorizontalBlock"] {{
+            /* 💡 1. 상단 헤더 영역 (제목 + 이름선택창) */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(2):last-child) {{
                 display: flex !important;
                 flex-direction: row !important;
-                flex-wrap: nowrap !important; /* 무조건 한 줄 */
+                flex-wrap: nowrap !important;
                 align-items: center !important;
-                gap: 3px !important;
-                width: 100% !important;
-                overflow: visible !important;
+                margin-bottom: 5px !important;
             }}
-            div[data-testid="column"] {{
-                width: auto !important; /* 100% 강제 확장 분쇄 */
-                min-width: 0 !important;
-                margin: 0 !important;
-                padding: 0 1px !important;
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(2):last-child) > div[data-testid="column"] {{
+                min-width: 0 !important; width: auto !important; padding: 0 !important; margin: 0 !important;
             }}
-            
-            /* 💡 2단계: 최신 문법(:has) 없이, 순수 형제(Sibling) 갯수로 정밀 타격하여 비율 고정 */
-            
-            /* (1) 헤더 영역 (자식이 2개인 컬럼들) */
-            div[data-testid="column"]:first-child:nth-last-child(2) {{ flex: 1 1 0px !important; }}
-            div[data-testid="column"]:first-child:nth-last-child(2) ~ div[data-testid="column"]:nth-child(2) {{ flex: 0 0 35px !important; max-width: 35px !important; }}
-            
-            /* (2) 조종석 메뉴바 영역 (자식이 8개인 컬럼들) */
-            div[data-testid="column"]:first-child:nth-last-child(8),
-            div[data-testid="column"]:first-child:nth-last-child(8) ~ div[data-testid="column"] {{ flex: 1 1 0px !important; }} /* 나머지 아이콘들 균등 분배 */
-            
-            /* 이름칸 (딱 76px 방어벽) */
-            div[data-testid="column"]:first-child:nth-last-child(8) {{ flex: 0 0 76px !important; max-width: 76px !important; }}
-            
-            /* 이번주 버튼칸 (딱 46px 방어벽) */
-            div[data-testid="column"]:first-child:nth-last-child(8) ~ div[data-testid="column"]:nth-child(3) {{ flex: 0 0 46px !important; max-width: 46px !important; }}
-            
-            /* 💡 3단계: 조종석 배경색만 칠하기 (DOM 순서 기반) */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="stHorizontalBlock"] {{
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(2):last-child) > div[data-testid="column"]:nth-child(1) {{ flex: 1 1 auto !important; }}
+            /* 우측 이름 선택창: 딱 90px 크기로 아담하게 고정 */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(2):last-child) > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 90px !important; }}
+
+            /* 💡 2. 아이콘 조종석 영역 (7개 버튼, 왼쪽 정렬) */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) {{
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                align-items: center !important;
+                justify-content: flex-start !important; /* 🔥 왼쪽으로 당겨서 정렬 */
+                gap: 4px !important;
                 background-color: {t['top']} !important;
+                padding: 6px 4px !important;
                 border-radius: 6px !important;
-                padding: 5px 3px !important;
                 margin-bottom: 8px !important;
+                max-width: 460px !important; /* 🔥 460px 이내로 제한 */
+            }}
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"] {{
+                min-width: 0 !important; width: auto !important; padding: 0 !important; margin: 0 !important;
+            }}
+            
+            /* 버튼별 픽셀 고정 (합쳐서 270px 이하 초소형) */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"]:nth-child(1),
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"]:nth-child(3),
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"]:nth-child(4),
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"]:nth-child(5),
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"]:nth-child(6),
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"]:nth-child(7) {{ 
+                flex: 0 0 35px !important; 
+            }}
+            /* 이번주 버튼 */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(7):last-child) > div[data-testid="column"]:nth-child(2) {{ 
+                flex: 0 0 55px !important; 
             }}
         }}
         
-        /* 💡 4단계: 드롭다운 및 버튼 내부 강제 팽창 방지 */
-        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 30px !important; width: 100% !important; min-width: 0 !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 30px !important; padding: 0 0 0 4px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
+        /* 드롭다운 UI (상단 이름 선택창) */
+        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
+        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 0 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         
+        /* 버튼 공통 초소형 디자인 */
         .stButton>button {{ 
-            height: 30px !important; 
+            height: 32px !important; 
             border-radius: 4px !important; 
-            font-size: 12px !important; 
+            font-size: 13px !important; 
             font-weight: bold !important; 
             background-color: transparent !important; 
             color: {t['text']} !important; 
@@ -104,19 +112,22 @@ st.markdown(f"""
             line-height: 1 !important;
             width: 100% !important;
             min-width: 0 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: clip !important;
         }}
         
+        /* ON 상태 하이라이트 */
         .stButton>button[data-testid="baseButton-primary"] {{ 
             background-color: {t['hl_per']} !important; 
             color: #ffffff !important; 
             border: 1px solid {t['hl_per']} !important; 
         }}
         
-        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 30px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important; }}
+        /* 설정 팝오버 아이콘 (화살표 숨김) */
+        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important; }}
         div[data-testid="stPopover"] svg {{ display: none !important; }}
+        
+        /* 알림창 폰트 색상 */
+        div[data-testid="stAlert"] {{ border-radius: 8px !important; }}
+        div[data-testid="stAlert"] p {{ color: #111111 !important; font-weight: bold !important; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -199,6 +210,7 @@ def load_csv():
     return t_data
 
 teachers_data = load_csv()
+teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 
 custom_data = {}
 memos_list = []
@@ -224,64 +236,58 @@ monday = target_date - timedelta(days=target_date.weekday())
 
 
 # ---------------------------------------------------------
-# 🚨 CSS가 이 위치를 기준으로 정확히 인식하도록 DOM 구조를 통제합니다.
+# 🚨 CSS가 이 위치를 기준으로 정확히 인식하도록 DOM 구조 통제
 # ---------------------------------------------------------
 
-# [DOM 구조 1번] 상단 헤더 (제목 + 로그아웃)
+# 💡 [DOM 자식 1번] 상단 헤더: "제목(좌측) + 이름선택창(우측 아담하게)"
 col_h1, col_h2 = st.columns(2)
 with col_h1:
     st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
-    if st.button("🔓", use_container_width=True, help="로그아웃"):
-        st.session_state.logged_in_user = None
-        st.query_params.clear() 
-        st.rerun()
-
-# [DOM 구조 2번] 8개 버튼 조종석 메뉴바 (어떠한 브라우저에서도 무조건 1줄 보장)
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
-
-with c1:
-    teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
     selected = st.selectbox("교사", teacher_list, index=idx, label_visibility="collapsed")
     if selected != st.session_state.teacher:
         st.session_state.teacher = selected
         st.rerun()
-with c2:
+
+# 💡 [DOM 자식 2번] 7개 아이콘 조종석: 왼쪽 바짝 정렬, 폭 460px 이하로 압축!
+c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+
+with c1:
     if st.button("◀", use_container_width=True): 
         st.session_state.week_offset -= 1
         st.rerun()
-with c3:
+with c2:
     btn_type = "primary" if st.session_state.week_offset == 0 else "secondary"
     if st.button("이번주", use_container_width=True, type=btn_type): 
         st.session_state.week_offset = 0
         st.rerun()
-with c4:
+with c3:
     if st.button("▶", use_container_width=True): 
         st.session_state.week_offset += 1
         st.rerun()
-with c5:
+with c4:
     btn_type_memo = "primary" if st.session_state.show_memo else "secondary"
     if st.button("📝", use_container_width=True, type=btn_type_memo):
         new_val = not st.session_state.show_memo
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_memo": new_val})
         st.session_state.show_memo = new_val
         st.rerun()
-with c6:
+with c5:
     btn_type_zero = "primary" if st.session_state.show_zero else "secondary"
     if st.button("☀️", use_container_width=True, type=btn_type_zero):
         new_val = not st.session_state.show_zero
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_zero": new_val})
         st.session_state.show_zero = new_val
         st.rerun()
-with c7:
+with c6:
     btn_type_extra = "primary" if st.session_state.show_extra else "secondary"
     if st.button("🌙", use_container_width=True, type=btn_type_extra):
         new_val = not st.session_state.show_extra
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_extra": new_val})
         st.session_state.show_extra = new_val
         st.rerun()
-with c8:
+with c7:
     with st.popover("⚙️", use_container_width=True):
         new_theme = st.selectbox("🎨 테마", [th['name'] for th in themes], index=st.session_state.theme_idx)
         if new_theme != themes[st.session_state.theme_idx]['name']:
@@ -294,13 +300,18 @@ with c8:
             requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
             st.session_state.font_name = new_font
             st.rerun()
-        
-        # 관리자 비밀번호 초기화
+            
+        st.markdown("---")
+        # 💡 [요청 반영] 로그아웃을 설정 버튼 안으로 쏙 숨겼습니다!
+        if st.button("🔓 로그아웃", type="primary", use_container_width=True):
+            st.session_state.logged_in_user = None
+            st.query_params.clear() 
+            st.rerun()
+            
         if st.session_state.logged_in_user == "표민호":
-            st.markdown("---")
-            st.markdown("<div style='font-size:12px; font-weight:bold;'>👨‍🏫 비번 초기화</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 비번 초기화 (1234)</div>", unsafe_allow_html=True)
             reset_target = st.selectbox("대상", teacher_list, key="reset_pw", label_visibility="collapsed")
-            if st.button("1234로 변경", type="primary", use_container_width=True):
+            if st.button("실행", use_container_width=True):
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
                 st.success("완료!")
 
