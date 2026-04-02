@@ -32,7 +32,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 🚨 [선생님 아이디어 적용] 일체형 툴바(Toolbar) 디자인 CSS
+# 🚨 [선생님 아이디어 적용] 헤더 결합 & 툴바 420px 고정 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
@@ -45,81 +45,101 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 가로 블록은 모두 1줄로 강제 유지 */
-        div[data-testid="stHorizontalBlock"] {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-        }}
-        div[data-testid="column"] {{
-            min-width: 0 !important; 
-            width: auto !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }}
-
         @media screen and (max-width: 9999px) {{
-            /* 1️⃣ 상단 헤더 (제목 + 이름선택창) */
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(1) {{ flex: 1.5 1 auto !important; }}
-            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(2) {{ flex: 1 1 auto !important; max-width: 110px !important; }}
+            /* 💡 1. 상단 헤더 (제목 옆에 100px 이름 선택창 바짝 붙이기) */
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="stHorizontalBlock"] {{
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                align-items: center !important;
+                justify-content: flex-start !important;
+                gap: 12px !important; /* 제목과 이름창 사이 간격 */
+                margin-bottom: 8px !important;
+            }}
+            /* 제목 구역: 글자 길이에 맞춰 자동 크기 조절 */
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(1) {{ 
+                flex: 0 0 auto !important; 
+                width: auto !important; 
+                min-width: 0 !important;
+                padding: 0 !important;
+            }}
+            /* 이름선택창 구역: 딱 100px로 철통 고정 */
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(2) {{ 
+                flex: 0 0 100px !important; 
+                width: 100px !important; 
+                max-width: 100px !important; 
+                min-width: 100px !important;
+                padding: 0 !important;
+            }}
 
-            /* 2️⃣ 일체형 툴바(Toolbar) 컨테이너 세팅 */
+            /* 💡 2. 일체형 툴바 (420px로 단단하게 고정) */
             .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="stHorizontalBlock"] {{
-                background-color: {t['top']} !important; /* 전체 바 배경색 */
-                border-radius: 12px !important; /* 툴바 끝을 둥글게 */
+                background-color: {t['top']} !important;
+                border-radius: 12px !important;
                 padding: 4px !important;
                 margin-bottom: 12px !important;
-                gap: 0 !important; /* 💡 핵심: 버튼 사이 간격을 0으로! */
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; /* 바 전체에 은은한 그림자 */
+                gap: 0 !important; 
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+                
+                /* 핵심: 420px 고정 및 절대 줄바꿈 금지 */
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: nowrap !important; 
+                max-width: 420px !important; 
+                width: 100% !important; /* 420px보다 좁은 기기에서는 화면에 맞춤 */
             }}
             
-            /* 툴바 안의 버튼 칸 배치 */
+            /* 툴바 안의 아이콘 버튼들 1줄 균등 배치 */
             .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"] {{ 
-                flex: 1 1 auto !important; 
-                padding: 0 2px !important; /* 아이콘 간의 미세한 틈새만 유지 */
+                flex: 1 1 0% !important; 
+                width: auto !important;
+                min-width: 0 !important;
+                padding: 0 2px !important;
             }}
+            /* '이번주' 글씨가 길어서 비율을 살짝 더 줌 */
             .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(2) {{ 
-                flex: 1.3 1 auto !important; /* '이번주' 글씨 공간 */
+                flex: 1.5 1 0% !important; 
             }}
-
-            /* 💡 툴바 안의 버튼 디자인 (테두리 완전 제거!) */
-            .stButton>button {{ 
-                height: 36px !important; 
-                border-radius: 8px !important; 
-                font-size: 13px !important; 
-                font-weight: bold !important; 
-                background-color: transparent !important; /* 기본 배경 투명 */
-                color: {t['text']} !important; 
-                border: none !important; /* 💡 핵심: 개별 버튼 테두리 제거 */
-                padding: 0 !important; 
-                line-height: 1 !important;
-                width: 100% !important;
-            }}
-            
-            /* 💡 ON 상태 버튼 (툴바 안에서 색상이 채워지는 알약 형태) */
-            .stButton>button[data-testid="baseButton-primary"] {{ 
-                background-color: {t['hl_per']} !important; 
-                color: #ffffff !important; 
-                border: none !important; 
-                box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
-            }}
-            
-            /* ⚙️ 설정 팝오버 아이콘 (테두리 제거) */
-            div[data-testid="stPopover"] > button {{ 
-                font-size: 15px !important; 
-                height: 36px !important; 
-                padding: 0 !important; 
-                width: 100% !important;
-                border: none !important; 
-                background-color: transparent !important; 
-                color: {t['text']} !important; 
-            }}
-            
-            /* 이름 선택창 크기 */
-            div[data-baseweb="select"] {{ height: 32px !important; font-size: 13px !important; font-weight: bold; }}
-            div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 4px !important; border: 1px solid {t['grid']} !important; border-radius: 6px; }}
         }}
+
+        /* 💡 툴바 안의 버튼 디자인 (테두리 완전 제거!) */
+        .stButton>button {{ 
+            height: 36px !important; 
+            border-radius: 8px !important; 
+            font-size: 13px !important; 
+            font-weight: bold !important; 
+            background-color: transparent !important; 
+            color: {t['text']} !important; 
+            border: none !important; 
+            padding: 0 !important; 
+            line-height: 1 !important;
+            width: 100% !important;
+            min-width: 0 !important;
+        }}
+        
+        /* 💡 ON 상태 버튼 (툴바 안에서 색상이 채워지는 알약 형태) */
+        .stButton>button[data-testid="baseButton-primary"] {{ 
+            background-color: {t['hl_per']} !important; 
+            color: #ffffff !important; 
+            border: none !important; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
+        }}
+        
+        /* ⚙️ 설정 팝오버 아이콘 (테두리 제거) */
+        div[data-testid="stPopover"] > button {{ 
+            font-size: 15px !important; 
+            height: 36px !important; 
+            padding: 0 !important; 
+            width: 100% !important;
+            border: none !important; 
+            background-color: transparent !important; 
+            color: {t['text']} !important; 
+            min-width: 0 !important;
+        }}
+        
+        /* 💡 이름 선택창 100px 크기 최적화 */
+        div[data-baseweb="select"] {{ height: 32px !important; font-size: 13px !important; font-weight: bold; width: 100% !important; }}
+        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 4px 0 8px !important; border: 1px solid {t['grid']} !important; border-radius: 6px; }}
         
         div[data-testid="stPopover"] svg {{ display: none !important; }}
         div[data-testid="stAlert"] {{ border-radius: 8px !important; }}
@@ -232,11 +252,11 @@ monday = target_date - timedelta(days=target_date.weekday())
 
 
 # ---------------------------------------------------------
-# 💡 상단 헤더: 제목(좌) + 이름선택창(우)
+# 💡 상단 헤더: 제목 옆에 100px 이름선택창 딱 붙이기
 # ---------------------------------------------------------
 col_h1, col_h2 = st.columns(2)
 with col_h1:
-    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:6px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
     selected = st.selectbox("교사", teacher_list, index=idx, label_visibility="collapsed")
@@ -245,8 +265,7 @@ with col_h2:
         st.rerun()
 
 # ---------------------------------------------------------
-# 💡 일체형 툴바(Toolbar) 형태의 조종석 메뉴
-# 개별 테두리가 사라지고, 둥근 직사각형 바 안에 쏙 들어갑니다!
+# 💡 일체형 툴바(Toolbar): 420px 절대 고정 + 강제 1줄 압축
 # ---------------------------------------------------------
 c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
 
@@ -311,7 +330,6 @@ with c7:
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
                 st.success("완료!")
 
-# ---------------------------------------------------------
 
 # --- 시간표 렌더링 (뷰어 전용) ---
 is_current_week = (st.session_state.week_offset == 0)
@@ -415,7 +433,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
 html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
-
 
 # --- 프라이빗 메모장 (읽기 전용 뷰어) ---
 if st.session_state.show_memo:
