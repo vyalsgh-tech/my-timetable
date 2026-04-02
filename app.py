@@ -5,28 +5,96 @@ import os
 import base64
 from datetime import datetime, timedelta, timezone
 
-# 1. 페이지 및 모바일 UI 설정
+# 1. 페이지 및 모바일 UI 기본 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-st.markdown("""
+# 2. 상태 초기화 (CSS 렌더링을 위해 최상단으로 이동)
+if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = None
+if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
+if 'show_zero' not in st.session_state: st.session_state.show_zero = False
+if 'show_extra' not in st.session_state: st.session_state.show_extra = False
+if 'show_memo' not in st.session_state: st.session_state.show_memo = True
+if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
+if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
+if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
+
+# 3. 테마 정의 (text 속성 추가로 글자 가독성 완벽 해결)
+themes = [
+    { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f', 'text': '#ffffff' },
+    { 'name': '웜 파스텔', 'bg': '#fdf6e3', 'top': '#e4d5b7', 'grid': '#eee8d5', 'head_bg': '#d6caba', 'head_fg': '#333333', 'per_bg': '#e8e2d2', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#f0e6d2', 'cell_fg': '#4a4a4a', 'hl_per': '#ffb6b9', 'hl_cell': '#fae3d9', 'text': '#333333' },
+    { 'name': '클래식 블루', 'bg': '#e0eaf5', 'top': '#4a90e2', 'grid': '#d0dceb', 'head_bg': '#5c9ce6', 'head_fg': 'white', 'per_bg': '#a8c2e0', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e0f0', 'cell_fg': '#2c3e50', 'hl_per': '#f39c12', 'hl_cell': '#fde3a7', 'text': '#2c3e50' },
+    { 'name': '포레스트', 'bg': '#e9ede7', 'top': '#2c5344', 'grid': '#d0d8d3', 'head_bg': '#3b6a57', 'head_fg': 'white', 'per_bg': '#8ba89a', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e8d7', 'cell_fg': '#1a3026', 'hl_per': '#d35400', 'hl_cell': '#f9e79f', 'text': '#1a3026' },
+    { 'name': '모노톤', 'bg': '#f5f5f5', 'top': '#333333', 'grid': '#e0e0e0', 'head_bg': '#555555', 'head_fg': 'white', 'per_bg': '#999999', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d4d4d4', 'cell_fg': '#000000', 'hl_per': '#d90429', 'hl_cell': '#edf2f4', 'text': '#222222' }
+]
+t = themes[st.session_state.theme_idx]
+
+# 💡 세련되고 가독성 높은 맞춤형 CSS 주입
+st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <style>
-        .stApp { max-width: 420px; margin: 0 auto; background-color: #2c3e50; }
-        .block-container { padding: 1rem 0.5rem !important; }
-        header { visibility: hidden; }
-        div[data-baseweb="select"] { font-size: 14px !important; padding: 0px !important; height: 35px !important; }
-        .stButton>button { height: 35px !important; padding: 0px 3px !important; font-size: 13px !important; line-height: 1 !important; }
-        div[data-testid="stDialog"] { border-radius: 15px; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 3px; }
-        .cell-link { display: block; height: 100%; text-decoration: none !important; color: inherit !important; }
-        .memo-link { display: block; text-decoration: none !important; color: inherit !important; }
-        .action-btn { display: flex; align-items: center; justify-content: center; text-decoration: none !important; }
+        /* 전체 배경 및 기본 텍스트 색상 */
+        .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
+        .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp div[data-testid="stMarkdownContainer"] {{
+            color: {t['text']} !important;
+        }}
+        .block-container {{ padding: 1rem 0.5rem !important; }}
+        header {{ visibility: hidden; }}
+        
+        /* 탭 메뉴 스타일링 */
+        .stTabs [data-baseweb="tab-list"] {{ background-color: transparent !important; }}
+        .stTabs [data-baseweb="tab-list"] button {{ color: {t['text']} !important; font-weight: 600; opacity: 0.7; }}
+        .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {{ opacity: 1; border-bottom: 3px solid {t['hl_per']} !important; }}
+        
+        /* 인력창(Input) 세련된 스타일링 */
+        div[data-baseweb="input"] {{
+            background-color: #ffffff !important;
+            border-radius: 8px !important;
+            border: 1px solid #bdc3c7 !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }}
+        div[data-baseweb="input"] input {{ color: #2c3e50 !important; font-size: 15px !important; background-color: transparent !important; }}
+        div[data-baseweb="input"] input::placeholder {{ color: #95a5a6 !important; }}
+        
+        /* 버튼 공통 스타일링 */
+        .stButton>button {{
+            height: 40px !important; 
+            border-radius: 8px !important; 
+            font-size: 14px !important; 
+            font-weight: bold !important;
+            background-color: {t['top']} !important;
+            color: {t['text']} !important;
+            border: 1px solid {t['grid']} !important;
+            transition: all 0.2s ease;
+        }}
+        /* 강조용(Primary) 버튼 스타일링 */
+        .stButton>button[data-testid="baseButton-primary"] {{
+            background-color: {t['hl_per']} !important;
+            color: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+        .stButton>button:active {{ transform: scale(0.97); }}
+        
+        /* 알림창 박스 가독성 확보 */
+        div[data-testid="stAlert"] {{
+            background-color: {t['top']} !important;
+            color: {t['text']} !important;
+            border: 1px solid {t['grid']} !important;
+            border-radius: 10px !important;
+        }}
+        
+        /* 스크롤바 및 다이얼로그 */
+        div[data-testid="stDialog"] {{ border-radius: 15px; }}
+        ::-webkit-scrollbar {{ width: 6px; }}
+        ::-webkit-scrollbar-track {{ background: transparent; }}
+        ::-webkit-scrollbar-thumb {{ background: #bdc3c7; border-radius: 3px; }}
+        .cell-link {{ display: block; height: 100%; text-decoration: none !important; color: inherit !important; }}
+        .memo-link {{ display: block; text-decoration: none !important; color: inherit !important; }}
+        .action-btn {{ display: flex; align-items: center; justify-content: center; text-decoration: none !important; }}
     </style>
 """, unsafe_allow_html=True)
 
-# 2. Supabase 통신 기본 설정
+# 4. Supabase 통신 기본 설정
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {
@@ -36,59 +104,68 @@ HEADERS = {
     "Prefer": "return=representation"
 }
 
-# 3. 로그인 게이트웨이
-if 'logged_in_user' not in st.session_state:
-    st.session_state.logged_in_user = None
-
+# 5. 로그인 화면 렌더링 (가독성 높은 디자인 적용)
 if st.session_state.logged_in_user is None:
-    st.title("🔒 명덕외고 시간표 접속")
-    tab1, tab2 = st.tabs(["로그인", "새 계정 생성"])
+    # 세련된 메인 타이틀
+    st.markdown(f"""
+    <div style='text-align:center; padding: 2rem 0 1rem 0;'>
+        <div style='font-size: 3rem; margin-bottom: 10px;'>🏫</div>
+        <h1 style='color:{t['text']}; font-size: 26px; margin-bottom: 5px; font-weight: 800;'>명덕외고 스마트 시간표</h1>
+        <p style='color:{t['text']}; opacity: 0.8; font-size: 14px; margin-top: 0;'>교직원 전용 업무 지원 시스템</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["🔐 로그인", "📝 새 계정 등록"])
     
     with tab1:
-        st.info("선생님의 성함을 입력해 주세요. (예: 표민호)")
-        login_id = st.text_input("아이디 (이름)", key="l_id")
-        login_pw = st.text_input("비밀번호", type="password", key="l_pw")
-        if st.button("로그인", use_container_width=True):
-            r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{login_id}", headers=HEADERS)
-            if r.status_code == 200 and len(r.json()) > 0:
-                user_data = r.json()[0]
-                if user_data['password'] == login_pw:
-                    # 로그인 성공 시 개인 설정값 모두 불러오기
-                    st.session_state.logged_in_user = login_id
-                    st.session_state.teacher = login_id
-                    st.session_state.theme_idx = user_data.get('theme_idx', 0)
-                    st.session_state.font_name = user_data.get('font_name', '맑은 고딕')
-                    st.session_state.show_zero = user_data.get('show_zero', False)
-                    st.session_state.show_extra = user_data.get('show_extra', False)
-                    st.session_state.show_memo = user_data.get('show_memo', True)
-                    st.rerun()
-                else:
-                    st.error("비밀번호가 틀렸습니다.")
+        st.info("💡 처음 오셨다면 [새 계정 등록] 탭을 눌러 계정을 만들어주세요.")
+        login_id = st.text_input("아이디 (선생님 성함)", placeholder="예: 표민호", key="l_id")
+        login_pw = st.text_input("비밀번호", type="password", placeholder="비밀번호를 입력하세요", key="l_pw")
+        # type="primary"를 주어 눈에 띄게 만듭니다.
+        if st.button("로그인", use_container_width=True, type="primary"):
+            if not login_id.strip() or not login_pw.strip():
+                st.warning("아이디와 비밀번호를 모두 입력하세요.")
             else:
-                st.error("등록되지 않은 선생님입니다.")
+                r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{login_id}", headers=HEADERS)
+                if r.status_code == 200 and len(r.json()) > 0:
+                    user_data = r.json()[0]
+                    if user_data['password'] == login_pw:
+                        st.session_state.logged_in_user = login_id
+                        st.session_state.teacher = login_id
+                        st.session_state.theme_idx = user_data.get('theme_idx', 0)
+                        st.session_state.font_name = user_data.get('font_name', '맑은 고딕')
+                        st.session_state.show_zero = user_data.get('show_zero', False)
+                        st.session_state.show_extra = user_data.get('show_extra', False)
+                        st.session_state.show_memo = user_data.get('show_memo', True)
+                        st.rerun()
+                    else:
+                        st.error("비밀번호가 일치하지 않습니다.")
+                else:
+                    st.error("등록되지 않은 선생님입니다. 계정을 먼저 생성해 주세요.")
                 
     with tab2:
-        new_id = st.text_input("사용할 아이디 (이름)", key="n_id")
-        new_pw = st.text_input("사용할 비밀번호", type="password", key="n_pw")
-        if st.button("계정 생성", use_container_width=True):
+        st.info("💡 본인의 성함을 아이디로 사용하시면 동료 선생님들이 시간표를 찾기 쉽습니다.")
+        new_id = st.text_input("사용할 아이디 (성함)", placeholder="예: 황혜령", key="n_id")
+        new_pw = st.text_input("사용할 비밀번호", type="password", placeholder="사용하실 비밀번호를 입력하세요", key="n_pw")
+        if st.button("계정 생성하기", use_container_width=True, type="primary"):
             if not new_id.strip() or not new_pw.strip():
                 st.warning("아이디와 비밀번호를 모두 입력하세요.")
             else:
                 r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{new_id}", headers=HEADERS)
                 if r.status_code == 200 and len(r.json()) > 0:
-                    st.error("이미 등록된 이름입니다.")
+                    st.error("이미 등록되어 있는 이름입니다.")
                 else:
                     payload = {"teacher_name": new_id, "password": new_pw}
                     r2 = requests.post(f"{SUPABASE_URL}/rest/v1/users", headers=HEADERS, json=payload)
                     if r2.status_code in [200, 201]:
-                        st.success("✅ 계정이 생성되었습니다! [로그인] 탭으로 이동해주세요.")
+                        st.success("✅ 완벽합니다! 계정이 생성되었습니다. 옆의 [로그인] 탭에서 로그인해 주세요.")
                     else:
-                        st.error("생성 실패. 서버 연결을 확인하세요.")
+                        st.error("생성 실패. 서버 연결 상태를 확인하세요.")
     st.stop()
 
 # --- 로그인 성공 후 메인 화면 ---
 
-# 4. CSV 데이터 로딩
+# 6. CSV 데이터 로딩
 @st.cache_data
 def load_csv():
     days = ["월", "화", "수", "목", "금"]
@@ -112,19 +189,7 @@ def load_csv():
 
 teachers_data = load_csv()
 
-if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
-
-themes = [
-    { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f' },
-    { 'name': '웜 파스텔', 'bg': '#fdf6e3', 'top': '#e4d5b7', 'grid': '#eee8d5', 'head_bg': '#d6caba', 'head_fg': '#333333', 'per_bg': '#e8e2d2', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#f0e6d2', 'cell_fg': '#4a4a4a', 'hl_per': '#ffb6b9', 'hl_cell': '#fae3d9' },
-    { 'name': '클래식 블루', 'bg': '#e0eaf5', 'top': '#4a90e2', 'grid': '#d0dceb', 'head_bg': '#5c9ce6', 'head_fg': 'white', 'per_bg': '#a8c2e0', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e0f0', 'cell_fg': '#2c3e50', 'hl_per': '#f39c12', 'hl_cell': '#fde3a7' },
-    { 'name': '포레스트', 'bg': '#e9ede7', 'top': '#2c5344', 'grid': '#d0d8d3', 'head_bg': '#3b6a57', 'head_fg': 'white', 'per_bg': '#8ba89a', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e8d7', 'cell_fg': '#1a3026', 'hl_per': '#d35400', 'hl_cell': '#f9e79f' },
-    { 'name': '모노톤', 'bg': '#f5f5f5', 'top': '#333333', 'grid': '#e0e0e0', 'head_bg': '#555555', 'head_fg': 'white', 'per_bg': '#999999', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d4d4d4', 'cell_fg': '#000000', 'hl_per': '#d90429', 'hl_cell': '#edf2f4' }
-]
-t = themes[st.session_state.theme_idx]
-st.markdown(f"<style>.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}</style>", unsafe_allow_html=True)
-
-# 5. DB 데이터 실시간 연동
+# 7. Supabase 실시간 데이터 연동
 custom_data = {}
 memos_list = []
 try:
@@ -140,7 +205,7 @@ except Exception:
 
 memo_count = len(memos_list)
 
-# 6. 모달창 (본인 계정만 동작함)
+# 8. 모달창 로직 (수정 모달은 본인 시간표에서만 동작)
 @st.dialog("일정 수정")
 def edit_modal(date_key, current_val):
     date_part, period_part = date_key.split('_')
@@ -207,18 +272,17 @@ elif "action" in st.query_params:
     st.query_params.clear()
     if act == "add_memo": add_memo_modal()
 
-# 7. 헤더 및 로그아웃
+# 9. 헤더 및 로그아웃 영역
 col_h1, col_h2 = st.columns([7, 3])
 with col_h1:
-    logo_html = "🏫&nbsp;"
-    st.markdown(f"<div style='color:{t['head_fg']}; font-size:16px; font-weight:bold; margin-top:5px;'>{logo_html} 2026학년도 1학기 시간표</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='color:{t['head_fg']}; font-size:17px; font-weight:800; margin-top:5px;'>🏫 명덕외고 시간표</div>", unsafe_allow_html=True)
 with col_h2:
     if st.button("🔒 로그아웃", use_container_width=True):
         st.session_state.logged_in_user = None
         st.rerun()
 
-# 8. 개인화된 상단 메뉴
-st.markdown(f"<div style='background-color:{t['top']}; padding:8px; border-radius:10px; margin-bottom:8px;'>", unsafe_allow_html=True)
+# 10. 상단 컨트롤 패널 (DB 연동 저장)
+st.markdown(f"<div style='background-color:{t['top']}; padding:8px; border-radius:10px; margin-bottom:8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>", unsafe_allow_html=True)
 r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns([1.8, 0.8, 0.8, 0.8, 0.8])
 with r1_c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
@@ -235,7 +299,6 @@ with r1_c4:
     if st.button("▶", use_container_width=True): st.session_state.week_offset += 1
 with r1_c5:
     with st.popover("⚙️"):
-        # 설정 변경 시 DB에 즉시 업데이트
         new_theme = st.selectbox("🎨 테마", [th['name'] for th in themes], index=st.session_state.theme_idx)
         if new_theme != themes[st.session_state.theme_idx]['name']:
             new_idx = [th['name'] for th in themes].index(new_theme)
@@ -273,7 +336,7 @@ with r2_c3:
         st.rerun()
 st.markdown("</div>", unsafe_allow_html=True)
 
-# 9. 시간 및 그리드 로직
+# 11. 시간 및 그리드 로직
 days = ["월", "화", "수", "목", "금"]
 period_times = [
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
@@ -306,7 +369,7 @@ for row_idx, (period, time_range) in enumerate(period_times):
         preview_row = row_idx
         break
 
-# 10. HTML 표 렌더링
+# 12. HTML 표 렌더링
 html = f"""
 <style>
     .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: clamp(10px, 3vw, 13px); }}
@@ -316,7 +379,7 @@ html = f"""
     .hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; border: 2px solid #d4ac0d !important; }}
     .cell-content {{ padding: 2px; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }}
 </style>
-<div style="width:100%; overflow-x:auto; background-color:{t['grid']}; padding:2px; border-top-left-radius:8px; border-top-right-radius:8px;">
+<div style="width:100%; overflow-x:auto; background-color:{t['grid']}; padding:2px; border-top-left-radius:8px; border-top-right-radius:8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 <table class="mobile-table">
 """
 
@@ -331,7 +394,6 @@ for col, day in enumerate(days):
 html += "</tr>"
 
 base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
-# 🔥 다른 사람 시간표를 볼 때는 클릭(수정) 불가하도록 철저히 막음
 is_my_schedule = (st.session_state.teacher == st.session_state.logged_in_user)
 
 for row_idx, (period, time_str) in enumerate(period_times):
@@ -385,7 +447,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
         link_href = f"/?edit_key={date_key}&edit_subj={subject}"
         html += f"<td {td_cell_class} style='background-color:{bg}; color:{fg}; font-weight:bold;'>"
         
-        # 💡 본인 시간표일 때만 터치(링크) 기능 활성화
         if is_my_schedule and period not in ["점심", "조회"]:
             html += f"<a href='{link_href}' target='_self' class='cell-link'><div class='cell-content' style='text-decoration:{deco}; line-height:1.2;'>{display}</div></a>"
         else:
@@ -397,20 +458,20 @@ html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
 
-# 11. 개인 전용 메모장 (타인 열람 절대 불가)
+# 13. 내 전용 프라이빗 메모장
 if st.session_state.show_memo:
-    memo_html = f"<div style='background-color:{t['bg']}; padding:8px; border: 2px solid {t['grid']}; border-top:none; border-bottom-left-radius:8px; border-bottom-right-radius:8px;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px;'><div style='font-size:14px; font-weight:bold; color:{t['head_fg']};'>📝 {st.session_state.logged_in_user} 선생님의 프라이빗 메모장</div><div style='display: flex; gap: 8px;'><a href='/?action=add_memo' target='_self' class='action-btn' style='background-color:{t['top']}; color:{t['head_fg']} !important; padding:4px 12px; border-radius:5px; font-size:12px; border:1px solid {t['grid']}; box-shadow: 0 1px 2px rgba(0,0,0,0.2);'>➕ 메모 추가</a></div></div><div style='max-height:160px; overflow-y:auto;'>"
+    memo_html = f"<div style='background-color:{t['bg']}; padding:12px; border: 2px solid {t['grid']}; border-top:none; border-bottom-left-radius:8px; border-bottom-right-radius:8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px;'><div style='font-size:15px; font-weight:bold; color:{t['text']};'>📝 {st.session_state.logged_in_user} 선생님의 메모장</div><div style='display: flex; gap: 8px;'><a href='/?action=add_memo' target='_self' class='action-btn' style='background-color:{t['hl_per']}; color:white !important; padding:6px 12px; border-radius:5px; font-size:12px; font-weight:bold; box-shadow: 0 2px 4px rgba(0,0,0,0.15);'>➕ 새 메모</a></div></div><div style='max-height:160px; overflow-y:auto; padding-right:4px;'>"
     if memos_list:
         for i, m in enumerate(memos_list):
             num = len(memos_list) - i
             text = m.get('memo_text', '')
             is_strike = m.get('is_strike', False)
-            text_color = "#95a5a6" if is_strike else t['head_fg']
+            text_color = "#95a5a6" if is_strike else t['text']
             deco = "line-through" if is_strike else "none"
             link_href = f"/?memo_idx={m['id']}"
-            memo_html += f"<a href='{link_href}' target='_self' class='memo-link'><div style='color:{text_color}; text-decoration:{deco}; font-size:clamp(12px, 3.8vw, 14px); margin-bottom:6px; line-height: 1.4; padding:6px; background-color:{t['top']}; border-radius:5px;'><b>{num}.</b> {text}</div></a>"
+            memo_html += f"<a href='{link_href}' target='_self' class='memo-link'><div style='color:{text_color}; text-decoration:{deco}; font-size:clamp(13px, 4vw, 15px); margin-bottom:8px; line-height: 1.5; padding:10px; background-color:{t['top']}; border-radius:8px; border-left: 4px solid {t['hl_per']}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);'><b>{num}.</b> {text}</div></a>"
     else:
-        memo_html += f"<div style='font-size:12px; color:{t['head_fg']}; text-align:center; padding:10px;'>저장된 메모가 없습니다. 첫 메모를 작성해보세요!</div>"
+        memo_html += f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; text-align:center; padding:15px;'>저장된 메모가 없습니다. 첫 메모를 작성해 보세요!</div>"
     
     memo_html += "</div></div>"
     st.markdown(memo_html, unsafe_allow_html=True)
