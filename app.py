@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 영구 로그인을 위한 URL 파라미터 인식 (최우선 실행)
+# 💡 영구 로그인을 위한 URL 파라미터 인식
 if "user" in st.query_params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = st.query_params["user"]
     st.session_state.teacher = st.query_params["user"]
@@ -33,11 +33,10 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 애니메이션 0초 차단 & 모바일 1줄 강제 정렬 CSS
+# 💡 모바일 최적화 CSS 
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <style>
-        /* 🚨 애니메이션 및 깜빡임 원천 차단 */
         * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
         .element-container, .stMarkdown, .stButton {{ animation: none !important; transition: none !important; }}
         
@@ -55,12 +54,11 @@ st.markdown(f"""
             gap: 4px !important;
         }}
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-            min-width: 0 !important; /* 내용물 크기에 맞춰 유연하게 수축 */
+            min-width: 0 !important; /* 필수: 화면 밖으로 밀려남 방지 */
             flex: 1 1 auto !important;
         }}
         
-        /* 버튼 디자인 (패딩 최소화하여 1줄에 다 들어가게 함) */
-        .stButton>button {{ height: 38px !important; border-radius: 6px !important; font-size: 13px !important; font-weight: bold !important; background-color: {t['top']} !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; padding: 0 2px !important; }}
+        .stButton>button {{ height: 38px !important; border-radius: 6px !important; font-size: 13.5px !important; font-weight: bold !important; background-color: {t['top']} !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; padding: 0 2px !important; }}
         
         .stButton>button[data-testid="baseButton-primary"] {{ background-color: {t['hl_per']} !important; color: #ffffff !important; border: 2px solid #ffffff !important; box-shadow: 0 0 5px rgba(0,0,0,0.3) !important; }}
         
@@ -95,7 +93,6 @@ def verify_and_load_user(user_id):
         return u_data
     return None
 
-# URL 파라미터로 자동 인증 시도
 if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
@@ -113,7 +110,7 @@ if st.session_state.logged_in_user is None:
                     if u_data['password'] == login_pw:
                         st.session_state.logged_in_user = login_id
                         st.session_state.teacher = login_id
-                        st.query_params["user"] = login_id # 💡 URL에 아이디 영구 각인
+                        st.query_params["user"] = login_id 
                         st.rerun()
                     else: st.error("비밀번호가 일치하지 않습니다.")
                 else: st.error("등록되지 않은 선생님입니다.")
@@ -176,16 +173,13 @@ now_kst = datetime.now(kst_tz)
 target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 
-# --- 모달창 (팝업) 모음 ---
-
+# --- 모달창 (팝업) ---
 @st.dialog("📅 시간표 내용 수정")
 def edit_timetable_modal(date_key, current_val):
     d_part, p_part = date_key.split('_')
     st.markdown(f"<div style='background-color:{t['top']}; padding:10px; border-radius:5px; margin-bottom:10px; text-align:center;'>선택: <b>{d_part} | {p_part}교시</b></div>", unsafe_allow_html=True)
-    
     new_subj = st.text_area("변경할 내용:", value=current_val.replace('<br>', '\n') if current_val else "", height=80, label_visibility="collapsed")
     
-    # 💡 3버튼이 무조건 1줄에 보이도록 st.columns(3) 레이아웃 유지 (위 CSS 덕에 안 깨짐)
     c1, c2, c3 = st.columns(3)
     if c1.button("💾 저장", use_container_width=True, type="primary"):
         chk = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}&date_key=eq.{date_key}", headers=HEADERS).json()
@@ -224,7 +218,7 @@ def manage_memo_modal(memo_id):
         requests.delete(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{memo_id}", headers=HEADERS)
         st.rerun()
 
-# 💡 URL 파라미터 감지 후 모달 띄우기
+# URL 파라미터 감지
 if "edit_date" in st.query_params:
     d_key = st.query_params["edit_date"]
     c_val = st.query_params.get("edit_subj", "")
@@ -245,55 +239,61 @@ with col_h1:
 with col_h2:
     if st.button("🔓 로그아웃", use_container_width=True):
         st.session_state.logged_in_user = None
-        st.query_params.clear() # 로그아웃 시 URL 정보 파기
+        st.query_params.clear() 
         st.rerun()
 
-# 💡 모바일 1줄 레이아웃 메뉴바
-st.markdown(f"<div style='background-color:{t['top']}; padding:6px; border-radius:10px; margin-bottom:10px;'>", unsafe_allow_html=True)
-# 8개의 버튼을 정밀한 비율로 분배
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2.0, 0.7, 1.2, 0.7, 1.0, 1.0, 1.0, 0.8])
-with c1:
+# 💡 완벽하게 최적화된 모바일 2줄 레이아웃 (잘림/스크롤 없음)
+st.markdown(f"<div style='background-color:{t['top']}; padding:8px; border-radius:10px; margin-bottom:10px;'>", unsafe_allow_html=True)
+
+# 첫 번째 줄: 교사선택, 이전, 이번주, 다음
+r1_c1, r1_c2, r1_c3, r1_c4 = st.columns([2.5, 1.0, 1.4, 1.0])
+with r1_c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
     selected = st.selectbox("교사", teacher_list, index=idx, label_visibility="collapsed")
     if selected != st.session_state.teacher:
         st.session_state.teacher = selected
         st.rerun()
-with c2:
+with r1_c2:
     if st.button("◀", use_container_width=True): 
         st.session_state.week_offset -= 1
         st.rerun()
-with c3:
+with r1_c3:
     btn_type = "primary" if st.session_state.week_offset == 0 else "secondary"
-    if st.button("이번주", use_container_width=True, type=btn_type): 
+    if st.button("이번 주", use_container_width=True, type=btn_type): 
         st.session_state.week_offset = 0
         st.rerun()
-with c4:
+with r1_c4:
     if st.button("▶", use_container_width=True): 
         st.session_state.week_offset += 1
         st.rerun()
-with c5:
-    m_icon = "📝" if st.session_state.show_memo else "📝-"
-    if st.button(m_icon, use_container_width=True):
+
+st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+
+# 두 번째 줄: 메모, 조회, 8/9교시, 설정 (버튼 색상 ON/OFF 직관적 적용)
+r2_c1, r2_c2, r2_c3, r2_c4 = st.columns([1.3, 1.3, 1.3, 0.8])
+with r2_c1:
+    btn_type_memo = "primary" if st.session_state.show_memo else "secondary"
+    if st.button("📝 메모", use_container_width=True, type=btn_type_memo):
         new_val = not st.session_state.show_memo
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_memo": new_val})
         st.session_state.show_memo = new_val
         st.rerun()
-with c6:
-    z_icon = "☀️" if st.session_state.show_zero else "☀️-"
-    if st.button(z_icon, use_container_width=True):
+with r2_c2:
+    btn_type_zero = "primary" if st.session_state.show_zero else "secondary"
+    if st.button("☀️ 조회", use_container_width=True, type=btn_type_zero):
         new_val = not st.session_state.show_zero
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_zero": new_val})
         st.session_state.show_zero = new_val
         st.rerun()
-with c7:
-    e_icon = "🌙" if st.session_state.show_extra else "🌙-"
-    if st.button(e_icon, use_container_width=True):
+with r2_c3:
+    btn_type_extra = "primary" if st.session_state.show_extra else "secondary"
+    if st.button("🌙 8,9", use_container_width=True, type=btn_type_extra):
         new_val = not st.session_state.show_extra
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_extra": new_val})
         st.session_state.show_extra = new_val
         st.rerun()
-with c8:
+with r2_c4:
     with st.popover("⚙️", use_container_width=True):
         new_theme = st.selectbox("🎨 테마", [th['name'] for th in themes], index=st.session_state.theme_idx)
         if new_theme != themes[st.session_state.theme_idx]['name']:
@@ -306,6 +306,7 @@ with c8:
             requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
             st.session_state.font_name = new_font
             st.rerun()
+
 st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -378,7 +379,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
         date_key = f"{(monday + timedelta(days=col)).strftime('%Y-%m-%d')}_{row_num}"
         
         subject = ""
-        # 💡 "조회"도 클릭 수정이 가능하도록 예외처리 제거 (base_schedule에 없으면 빈칸 취급)
         if period != "점심":
             s_idx = row_num - 2 if row_num < 6 else row_num - 3
             if s_idx >= 0 and s_idx < len(base_schedule.get(day, [])): 
@@ -408,7 +408,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
             elif row_idx == preview_row: td_cell_class = "class='hl-border-yellow'"
 
         html += f"<td {td_cell_class} style='background-color:{bg}; color:{fg};'>"
-        # 💡 내 시간표일 때 점심을 제외하고 셀 전체가 클릭 가능하도록(URL 전달)
         if is_my_schedule and period != "점심":
             link_href = f"/?user={st.session_state.logged_in_user}&edit_date={date_key}&edit_subj={subject}"
             html += f"<a href='{link_href}' target='_self' class='cell-link'><div style='text-decoration:{deco}; width:100%;'>{display}</div></a>"
@@ -448,7 +447,6 @@ if st.session_state.show_memo:
                 
                 link_href = f"/?user={st.session_state.logged_in_user}&action_memo={m['id']}"
                 
-                # 💡 메모 터치 시 팝업 & 줄 간격/디자인 최적화
                 memo_line = f"""
                 <a href="{link_href}" target="_self" style="text-decoration:none;">
                     <div style="color:{color}; text-decoration:{deco}; font-size:15px; font-weight:bold; line-height:1.3; padding: 8px 4px; border-bottom: 1px solid {t['grid']};">
