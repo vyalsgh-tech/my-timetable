@@ -32,7 +32,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 [초강력 핵심] 스트림릿 640px 붕괴 로직 완전 차단 CSS
+# 🚨 [절대 방어] 스트림릿의 모바일 붕괴 로직(640px 이하 강제 세로정렬)을 완벽 차단하는 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
@@ -45,52 +45,47 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 🚨 [절대 방어] 640px 이하 모바일 강제 줄바꿈 및 100% 확대 원천 차단 */
-        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            gap: 3px !important;
-            padding: 4px 2px !important;
-            background-color: {t['top']} !important;
-            border-radius: 6px !important;
-            margin-bottom: 8px !important;
+        /* 🔥 스트림릿의 미디어 쿼리를 이기기 위한 강력한 글로벌 선언 */
+        @media screen and (max-width: 9999px) {{
+            /* 모든 가로 배치 구역이 절대로 줄이 꺾이지 않도록 강제 (헤더, 조종석 모두 포함) */
+            div[data-testid="stHorizontalBlock"] {{
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                align-items: center !important;
+                gap: 3px !important;
+                overflow: visible !important;
+            }}
+            /* 모바일 100% 폭 강제 확장을 분쇄하고, 내용을 동일한 비율로 쪼갬 */
+            div[data-testid="column"] {{
+                width: auto !important;
+                min-width: 0 !important;
+                flex: 1 1 0% !important;
+                padding: 0 1px !important;
+                margin: 0 !important;
+            }}
+            
+            /* 💡 8개 버튼이 들어간 조종석 메뉴바만 정밀 조준 */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) {{
+                padding: 4px 2px !important;
+                background-color: {t['top']} !important;
+                border-radius: 6px !important;
+                margin-bottom: 8px !important;
+            }}
+            /* 이름칸 (딱 80px 방어막) */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(1) {{ flex: 0 0 80px !important; }}
+            /* 이번주 버튼칸 (딱 45px 방어막) */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(3) {{ flex: 0 0 45px !important; }}
+            
+            /* 헤더(로고 + 로그아웃) 비율 조준 */
+            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(2):last-child) > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 35px !important; }}
         }}
         
-        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"] {{
-            min-width: 0 !important; 
-            padding: 0 !important;
-            margin: 0 !important;
-            /* 💡 스트림릿이 640px 이하에서 부여하는 width: 100%를 무력화 */
-            width: auto !important; 
-        }}
+        /* 초소형 드롭다운 박스 */
+        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
+        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 4px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         
-        /* 1️⃣ 드롭다운 박스는 딱 85px로 철통 방어 고정 */
-        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(1) {{ 
-            flex: 0 0 85px !important; 
-            width: 85px !important;
-            max-width: 85px !important;
-        }}
-        
-        /* 3️⃣ '이번주' 버튼은 딱 50px로 고정 */
-        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(3) {{ 
-            flex: 0 0 50px !important; 
-            width: 50px !important;
-            max-width: 50px !important;
-        }}
-        
-        /* 2️⃣ 나머지 6개 아이콘은 남은 공간을 균등 분배 */
-        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:not(:nth-child(1)):not(:nth-child(3)) {{ 
-            flex: 1 1 0% !important; 
-            width: auto !important;
-        }}
-        
-        /* 드롭다운 UI 초소형 최적화 */
-        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
-        
-        /* 버튼 UI 초소형 최적화 */
+        /* 버튼 공통 초소형 디자인 */
         .stButton>button {{ 
             height: 32px !important; 
             border-radius: 4px !important; 
@@ -223,7 +218,7 @@ monday = target_date - timedelta(days=target_date.weekday())
 
 
 # --- 상단 헤더 ---
-col_h1, col_h2 = st.columns([8, 2])
+col_h1, col_h2 = st.columns(2)
 with col_h1:
     st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
@@ -232,8 +227,7 @@ with col_h2:
         st.query_params.clear() 
         st.rerun()
 
-# 💡 [핵심] 8개의 요소가 무조건 한 줄에 배치되도록 컬럼 할당
-# 파이썬 레벨에서도 8개를 배분하지만 실제 크기 제한은 위에서 작성한 CSS가 강력하게 통제합니다.
+# 💡 [핵심] 8개의 요소가 어떠한 환경에서도 '무조건' 한 줄에 배치됩니다.
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
 
 with c1:
@@ -297,7 +291,6 @@ with c8:
             if st.button("1234로 변경", type="primary", use_container_width=True):
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
                 st.success("완료!")
-
 
 # --- 시간표 렌더링 (뷰어 전용) ---
 is_current_week = (st.session_state.week_offset == 0)
@@ -401,7 +394,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
 html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
-
 
 # --- 프라이빗 메모장 (읽기 전용 뷰어) ---
 if st.session_state.show_memo:
