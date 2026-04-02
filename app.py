@@ -32,13 +32,11 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 [핵심] 뷰어 최적화 및 1줄 압축 CSS (확대/축소 허용)
+# 💡 [핵심] 초소형 아이콘 UI 및 스마트폰 폰트 최적화 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
-        /* 터치 액션 잠금 해제 (확대/축소 작동 보장) */
         html, body, .stApp {{ touch-action: auto !important; }}
-        
         * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
         .element-container, .stMarkdown, .stButton, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
         
@@ -53,38 +51,40 @@ st.markdown(f"""
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
-            gap: 2px !important; /* 버튼 사이 간격 최소화 */
-            overflow: visible !important;
-            padding: 4px 2px !important;
+            justify-content: space-between !important;
+            gap: 3px !important; /* 버튼 사이 간격 좁힘 */
             background-color: {t['top']} !important;
-            border-radius: 4px !important;
+            border-radius: 6px !important;
+            padding: 5px 3px !important;
             margin-bottom: 8px !important;
         }}
         div[data-testid="column"] {{
             min-width: 0 !important; 
-            width: auto !important;
             padding: 0 !important;
         }}
         
-        /* 드롭다운 박스 크기 최소화 */
-        div[data-baseweb="select"] {{ font-size: 11px !important; height: 28px !important; padding: 0 !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 28px !important; padding: 0 4px !important; }}
+        /* 1️⃣ 드롭다운 박스 초소형 (이름 3글자+여백) */
+        div[data-testid="column"]:nth-child(1) {{ flex: 0 0 75px !important; }}
+        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; }}
+        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         
-        /* 버튼 초소형 압축 디자인 */
+        /* 2️⃣ 나머지 버튼들 균등 분배 */
+        div[data-testid="column"]:not(:nth-child(1)) {{ flex: 1 1 0 !important; }}
+        
+        /* 버튼 공통 초소형 디자인 */
         .stButton>button {{ 
-            height: 28px !important; 
+            height: 32px !important; 
             border-radius: 4px !important; 
-            font-size: 11px !important; 
+            font-size: 13px !important; 
             font-weight: bold !important; 
             background-color: transparent !important; 
             color: {t['text']} !important; 
             border: 1px solid {t['grid']} !important; 
-            padding: 0 1px !important; 
-            white-space: nowrap !important;
+            padding: 0 !important; 
             line-height: 1 !important;
         }}
         
-        /* 선택된(ON) 버튼 색상 */
+        /* ON 상태 하이라이트 (Primary) */
         .stButton>button[data-testid="baseButton-primary"] {{ 
             background-color: {t['hl_per']} !important; 
             color: #ffffff !important; 
@@ -92,8 +92,8 @@ st.markdown(f"""
         }}
         
         /* 설정 팝오버 아이콘 */
-        div[data-testid="stPopover"] > button {{ font-size: 13px !important; padding: 0 !important; height: 28px !important; border: 1px solid {t['grid']} !important; }}
-        div[data-testid="stPopover"] svg {{ fill: {t['text']} !important; }}
+        div[data-testid="stPopover"] > button {{ font-size: 16px !important; padding: 0 !important; height: 32px !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; }}
+        div[data-testid="stPopover"] svg {{ fill: {t['text']} !important; display: none; }} /* 팝오버 화살표 숨김으로 깔끔하게 */
     </style>
 """, unsafe_allow_html=True)
 
@@ -122,10 +122,10 @@ def verify_and_load_user(user_id):
 if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
-# --- 로그인 화면 (개인 메모 보안용) ---
+# --- 로그인 화면 (뷰어 전용) ---
 if st.session_state.logged_in_user is None:
     st.markdown(f"<div style='text-align:center; padding: 2rem 0 1rem 0;'><div style='font-size: 3rem;'>🏫</div><h1 style='font-size: 26px; font-weight: 800;'>명덕외고 뷰어</h1></div>", unsafe_allow_html=True)
-    st.info("입력/수정은 PC버전을 이용해 주세요.")
+    st.info("💡 입력/수정은 PC버전을 이용해 주세요.")
     tab1, tab2 = st.tabs(["🔐 로그인", "📝 새 계정 등록"])
     with tab1:
         login_id = st.text_input("아이디 (선생님 성함)", placeholder="예: 표민호")
@@ -204,16 +204,17 @@ monday = target_date - timedelta(days=target_date.weekday())
 # --- 상단 헤더 ---
 col_h1, col_h2 = st.columns([8, 2])
 with col_h1:
-    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
     if st.button("🔓", use_container_width=True, help="로그아웃"):
         st.session_state.logged_in_user = None
         st.query_params.clear() 
         st.rerun()
 
-# 💡 초압축 1줄 레이아웃 (선생님|◀|이번주|▶|메모|조회+|8,9교시+|⚙️)
-# 가로 비율을 정밀하게 조정하여 스크롤 없이 쏙 들어가게 만듭니다.
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2.0, 0.6, 1.3, 0.6, 1.0, 1.1, 1.4, 0.8])
+# 💡 [핵심] 초소형 아이콘 전용 1줄 레이아웃 (이름|◀|이번주|▶|📝|☀️|🌙|⚙️)
+# 이름(c1)만 고정 너비를 가지고, 나머지는 동일한 비율로 쪼개어 가짐
+c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([0.1, 1, 2.5, 1, 1, 1, 1, 1.2])
+
 with c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
@@ -236,21 +237,21 @@ with c4:
         st.rerun()
 with c5:
     btn_type_memo = "primary" if st.session_state.show_memo else "secondary"
-    if st.button("메모", use_container_width=True, type=btn_type_memo):
+    if st.button("📝", use_container_width=True, type=btn_type_memo):
         new_val = not st.session_state.show_memo
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_memo": new_val})
         st.session_state.show_memo = new_val
         st.rerun()
 with c6:
     btn_type_zero = "primary" if st.session_state.show_zero else "secondary"
-    if st.button("조회+", use_container_width=True, type=btn_type_zero):
+    if st.button("☀️", use_container_width=True, type=btn_type_zero):
         new_val = not st.session_state.show_zero
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_zero": new_val})
         st.session_state.show_zero = new_val
         st.rerun()
 with c7:
     btn_type_extra = "primary" if st.session_state.show_extra else "secondary"
-    if st.button("8,9+", use_container_width=True, type=btn_type_extra):
+    if st.button("🌙", use_container_width=True, type=btn_type_extra):
         new_val = not st.session_state.show_extra
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"show_extra": new_val})
         st.session_state.show_extra = new_val
@@ -296,11 +297,12 @@ for row_idx, (period, time_range) in enumerate(period_times):
         preview_row = row_idx
         break
 
+# 💡 스마트폰 최적화 폰트 사이즈 (요일 15px, 날짜 12px, 교시 14px, 시간 11px, 과목 14px)
 html = f"""
 <style>
-    .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }}
-    .mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 40px; }}
-    .mobile-table td {{ border: 1px solid {t['grid']}; padding: 0px; text-align: center; vertical-align: middle; height: 60px; word-break: keep-all; font-weight: bold; font-size: 13px; }}
+    .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }}
+    .mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 45px; }}
+    .mobile-table td {{ border: 1px solid {t['grid']}; padding: 0px; text-align: center; vertical-align: middle; height: 65px; word-break: keep-all; font-weight: bold; font-size: 14px; }}
     
     .hl-border-red {{ box-shadow: inset 0 0 0 3px {t['hl_per']} !important; z-index: 10; }}
     .hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}
@@ -311,13 +313,13 @@ html = f"""
 """
 
 html += f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>"
-html += f"<th style='width: 14%;'>교시</th>"
+html += f"<th style='width: 13%; font-size:14px;'>교시</th>"
 for col, day in enumerate(days):
     date_str = (monday + timedelta(days=col)).strftime("%m/%d")
     th_class = "class='hl-border-red'" if (is_current_week and col == today_idx) else ""
     th_bg = t['hl_per'] if (is_current_week and col == today_idx) else t['head_bg']
     th_fg = 'white' if (is_current_week and col == today_idx and t['name'] != '웜 파스텔') else t['head_fg']
-    html += f"<th {th_class} style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:14px;'>{day}</span><br><span style='font-size:11px; font-weight:normal;'>{date_str}</span></div></th>"
+    html += f"<th {th_class} style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>"
 html += "</tr>"
 
 base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
@@ -334,7 +336,7 @@ for row_idx, (period, time_str) in enumerate(period_times):
     
     start_t, end_t = time_str.split('\n')
     html += f"<td {td_period_class} style='background-color:{p_bg}; color:{p_fg};'>"
-    html += f"<div style='line-height:1.1; font-size:13px; margin-bottom:2px;'><b>{period}</b></div>"
+    html += f"<div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div>"
     html += f"<div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div>"
     html += "</td>"
     
@@ -372,8 +374,8 @@ for row_idx, (period, time_str) in enumerate(period_times):
             elif row_idx == preview_row: td_cell_class = "class='hl-border-yellow'"
 
         html += f"<td {td_cell_class} style='background-color:{bg}; color:{fg};'>"
-        # 💡 편집 기능(링크) 전면 제거, 텍스트만 출력
-        html += f"<div style='text-decoration:{deco}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div>"
+        # 💡 편집 없는 텍스트 전용 출력 (과목 폰트 14px)
+        html += f"<div style='text-decoration:{deco}; font-size:14px; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div>"
         html += "</td>"
         
     html += "</tr>"
@@ -385,7 +387,7 @@ st.markdown(html, unsafe_allow_html=True)
 # --- 프라이빗 메모장 (읽기 전용 뷰어) ---
 if st.session_state.show_memo:
     st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='margin:0; font-size:16px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.logged_in_user} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.logged_in_user} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3>", unsafe_allow_html=True)
     
     with st.container(height=300, border=True):
         if memos_list:
@@ -400,7 +402,7 @@ if st.session_state.show_memo:
                 color = "gray" if is_strike else t['text']
                 
                 memo_line = f"""
-                <div style="color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 8px 4px; border-bottom: 1px solid {t['grid']};">
+                <div style="color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']};">
                     <b>{num}.</b> {prefix}{text}
                 </div>
                 """
