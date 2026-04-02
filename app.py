@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 URL 파라미터를 통한 상태 완벽 복구 (새로고침 방어)
+# 💡 URL 파라미터를 통한 상태 완벽 복구
 params = st.query_params
 if "user" in params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = params["user"]
@@ -57,32 +57,75 @@ if st.session_state.logged_in_user:
 @st.dialog("⚙️ 설정 및 관리")
 def settings_modal():
     teacher_list = list(teachers_data.keys()) if 'teachers_data' in locals() else [st.session_state.logged_in_user]
-    
     new_theme = st.selectbox("🎨 테마 변경", [th['name'] for th in themes], index=st.session_state.theme_idx)
     if new_theme != themes[st.session_state.theme_idx]['name']:
         new_idx = [th['name'] for th in themes].index(new_theme)
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"theme_idx": new_idx})
         st.session_state.theme_idx = new_idx
         st.rerun()
-        
     new_font = st.selectbox("A 폰트 변경", ["맑은 고딕", "바탕", "돋움", "굴림", "Arial"], index=["맑은 고딕", "바탕", "돋움", "굴림", "Arial"].index(st.session_state.font_name))
     if new_font != st.session_state.font_name:
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
         st.session_state.font_name = new_font
         st.rerun()
-        
     st.markdown("---")
     if st.button("🔓 로그아웃", type="primary", use_container_width=True):
         st.session_state.logged_in_user = None
         st.query_params.clear() 
         st.rerun()
-        
     if st.session_state.logged_in_user == "표민호":
         st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 [관리자] 비번 1234 초기화</div>", unsafe_allow_html=True)
         reset_target = st.selectbox("대상 선택", teacher_list, key="reset_pw", label_visibility="collapsed")
         if st.button("초기화 실행", use_container_width=True):
             requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
             st.success("완료!")
+
+# --- 데이터 로드 ---
+@st.cache_data
+def load_csv():
+    days = ["월", "화", "수", "목", "금"]
+    t_data = {}
+    if os.path.exists('data.csv'):
+        try:
+            with open('data.csv', 'r', encoding='utf-8-sig', errors='replace') as f:
+                reader = csv.reader(f)
+                next(reader, None)
+                for row in reader:
+                    if not row or len(row) < 36: continue
+                    name = row[0]
+                    periods_per_day = (len(row) - 1) // 5
+                    schedule = {d: [] for d in days}
+                    for i, day in enumerate(days):
+                        start_idx = 1 + i * periods_per_day
+                        schedule[day] = row[start_idx : start_idx + periods_per_day][:9]
+                    t_data[name] = schedule
+        except: pass
+    return t_data
+
+teachers_data = load_csv()
+teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
+
+custom_data = {}
+memos_list = []
+if st.session_state.logged_in_user:
+    try:
+        r_cust = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}", headers=HEADERS)
+        if r_cust.status_code == 200: custom_data = {row['date_key']: row['subject'] for row in r_cust.json()}
+        r_memo = requests.get(f"{SUPABASE_URL}/rest/v1/memos?teacher_name=eq.{st.session_state.logged_in_user}&order=created_at.desc", headers=HEADERS)
+        if r_memo.status_code == 200: memos_list = r_memo.json()
+    except: pass
+
+# --- URL 액션 처리 ---
+if "nav" in params:
+    nav = params["nav"]
+    if nav == "prev": st.session_state.week_offset -= 1
+    elif nav == "next": st.session_state.week_offset += 1
+    elif nav == "today": st.session_state.week_offset = 0
+    st.query_params.clear()
+    st.query_params["user"] = st.session_state.logged_in_user
+    st.query_params["t"] = st.session_state.teacher
+    st.query_params["w"] = st.session_state.week_offset
+    st.rerun()
 
 if "action" in params and params["action"] == "settings":
     st.query_params.clear()
@@ -123,40 +166,7 @@ if st.session_state.logged_in_user is None:
                     else: st.error("생성 실패.")
     st.stop()
 
-# --- 데이터 로드 ---
-@st.cache_data
-def load_csv():
-    days = ["월", "화", "수", "목", "금"]
-    t_data = {}
-    if os.path.exists('data.csv'):
-        try:
-            with open('data.csv', 'r', encoding='utf-8-sig', errors='replace') as f:
-                reader = csv.reader(f)
-                next(reader, None)
-                for row in reader:
-                    if not row or len(row) < 36: continue
-                    name = row[0]
-                    periods_per_day = (len(row) - 1) // 5
-                    schedule = {d: [] for d in days}
-                    for i, day in enumerate(days):
-                        start_idx = 1 + i * periods_per_day
-                        schedule[day] = row[start_idx : start_idx + periods_per_day][:9]
-                    t_data[name] = schedule
-        except: pass
-    return t_data
-
-teachers_data = load_csv()
-teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
-
-custom_data = {}
-memos_list = []
-try:
-    r_cust = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}", headers=HEADERS)
-    if r_cust.status_code == 200: custom_data = {row['date_key']: row['subject'] for row in r_cust.json()}
-    r_memo = requests.get(f"{SUPABASE_URL}/rest/v1/memos?teacher_name=eq.{st.session_state.logged_in_user}&order=created_at.desc", headers=HEADERS)
-    if r_memo.status_code == 200: memos_list = r_memo.json()
-except: pass
-
+# --- 날짜 계산 ---
 days = ["월", "화", "수", "목", "금"]
 period_times = [
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
@@ -164,38 +174,44 @@ period_times = [
     ("5교시", "12:40\n13:30"), ("6교시", "13:40\n14:30"), ("7교시", "14:40\n15:30"),
     ("8교시", "16:00\n16:50"), ("9교시", "17:00\n17:50")
 ]
-
 kst_tz = timezone(timedelta(hours=9))
 now_kst = datetime.now(kst_tz) 
 target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
+is_current_week = (st.session_state.week_offset == 0)
+today_idx = now_kst.weekday() 
+now_mins = now_kst.hour * 60 + now_kst.minute 
 
-
-# 💡 마크다운 블록 버그를 완벽히 막기 위해 줄바꿈 들여쓰기를 제거한 글로벌 CSS
-global_css = f"""<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
+# 💡 글로벌 CSS 설정 (헤더 수직 정렬 정밀 조정)
+st.markdown(f"""
 <style>
-html, body, .stApp {{ touch-action: auto !important; }}
-* {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
-.element-container, .stMarkdown, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
-.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
-.stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
-.block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
-header {{ visibility: hidden; }}
-@media screen and (max-width: 9999px) {{
-div[data-testid="stHorizontalBlock"]:first-of-type {{ display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; }}
-div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ flex: 1.5 1 auto !important; min-width: 0 !important; width: auto !important; }}
-div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 100px !important; min-width: 100px !important; width: 100px !important; }}
-}}
-div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
-div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
-</style>"""
-st.markdown(global_css, unsafe_allow_html=True)
-
+    html, body, .stApp {{ touch-action: auto !important; }}
+    * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
+    .element-container, .stMarkdown, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
+    .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
+    .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
+    .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
+    header {{ visibility: hidden; }}
+    
+    /* 🚨 상단 헤더 정밀 튜닝: 이름 선택창을 아래 툴바 끝선에 맞춤 */
+    @media screen and (max-width: 9999px) {{
+        div[data-testid="stHorizontalBlock"]:first-of-type {{
+            display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
+            justify-content: space-between !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ flex: 2 1 auto !important; min-width: 0 !important; width: auto !important; }}
+        /* 이름창 구역: 딱 🌙 아이콘 위치부터 끝까지 오는 적정 폭(115px) 확보 */
+        div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 115px !important; min-width: 115px !important; width: 115px !important; }}
+    }}
+    div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
+    div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 렌더링 (제목 + 이름선택창)
+# 1. 상단 헤더 렌더링 (제목 + 정렬된 이름선택창)
 # ---------------------------------------------------------
-col_h1, col_h2 = st.columns(2)
+col_h1, col_h2 = st.columns([2, 1])
 with col_h1:
     st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
@@ -207,7 +223,6 @@ with col_h2:
 
 # ---------------------------------------------------------
 # 2. 🔥 순수 HTML 툴바 & 0초 반응 시간표
-# (마크다운 오작동을 막기 위해 모든 들여쓰기를 제거한 안전한 조립 방식)
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 cur_w = st.session_state.week_offset
@@ -222,18 +237,13 @@ is_today = (cur_w == 0)
 bg_today = t['hl_per'] if is_today else "transparent"
 fg_today = "#ffffff" if is_today else t['text']
 
-# 체크박스 초기 상태 (DB값 반영)
+# 체크박스 초기 상태
 chk_memo_attr = "checked='checked'" if st.session_state.show_memo else ""
 chk_zero_attr = "checked='checked'" if st.session_state.show_zero else ""
 chk_extra_attr = "checked='checked'" if st.session_state.show_extra else ""
 
-# 현재 활성화된 교시 추적
-is_current_week = (st.session_state.week_offset == 0)
-today_idx = now_kst.weekday() 
-now_mins = now_kst.hour * 60 + now_kst.minute 
+# 시간표 활성 교시 계산
 active_row, preview_row = None, None
-base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
-
 for row_idx, (period, time_range) in enumerate(period_times):
     start_str, end_str = time_range.split('\n')
     h1, m1 = map(int, start_str.split(':'))
@@ -248,8 +258,6 @@ for row_idx, (period, time_range) in enumerate(period_times):
         break
 
 html_parts = []
-
-# 1. 툴바 및 CSS 스타일 (들여쓰기 완전 제거)
 html_parts.append("<style>")
 html_parts.append(f".pure-html-toolbar {{ display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; background-color: {t['top']}; padding: 4px 2px; border-radius: 6px; margin-bottom: 10px; width: 100%; max-width: 460px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); gap: 2px; }}")
 html_parts.append(f".tb-btn {{ flex: 1 1 0; text-align: center; text-decoration: none !important; color: {t['text']}; font-size: 13px; font-weight: bold; padding: 8px 0; border-radius: 4px; background-color: transparent; line-height: 1; cursor: pointer; user-select: none; display: block; }}")
@@ -268,14 +276,11 @@ html_parts.append(f".hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell
 html_parts.append(f".hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}")
 html_parts.append("</style>")
 
-# 2. 숨겨진 체크박스 상태
 html_parts.append(f"<input type='checkbox' id='chk-memo' style='display:none;' {chk_memo_attr} />")
 html_parts.append(f"<input type='checkbox' id='chk-zero' style='display:none;' {chk_zero_attr} />")
 html_parts.append(f"<input type='checkbox' id='chk-extra' style='display:none;' {chk_extra_attr} />")
 
 html_parts.append("<div class='app-container'>")
-
-# 3. HTML 일체형 툴바
 html_parts.append("<div class='pure-html-toolbar'>")
 html_parts.append(f"<a class='tb-btn' href='{link_prev}' target='_self'>◀</a>")
 html_parts.append(f"<a class='tb-btn tb-btn-wide' style='background-color:{bg_today}; color:{fg_today};' href='{link_today}' target='_self'>이번주</a>")
@@ -286,13 +291,11 @@ html_parts.append("<label class='tb-btn' for='chk-extra'>🌙</label>")
 html_parts.append(f"<a class='tb-btn' href='{link_set}' target='_self'>⚙️</a>")
 html_parts.append("</div>")
 
-# 4. 시간표 테이블 렌더링
 html_parts.append(f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'>")
 html_parts.append("<table class='mobile-table'>")
 html_parts.append(f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>")
 html_parts.append("<th style='width: 13%; font-size:14px;'>교시</th>")
 
-# 요일 헤더
 for col, day in enumerate(days):
     date_str = (monday + timedelta(days=col)).strftime("%m/%d")
     th_class = "hl-border-red" if (is_current_week and col == today_idx) else ""
@@ -301,84 +304,48 @@ for col, day in enumerate(days):
     html_parts.append(f"<th class='{th_class}' style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>")
 html_parts.append("</tr>")
 
-# 시간표 본문
+base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
 for row_idx, (period, time_str) in enumerate(period_times):
-    row_class = ""
-    if period == "조회": row_class = "row-zero"
-    elif period in ["8교시", "9교시"]: row_class = "row-extra"
-    
+    row_class = "row-zero" if period == "조회" else ("row-extra" if period in ["8교시", "9교시"] else "")
     td_period_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""
     html_parts.append(f"<tr class='{row_class}'>")
-    
     p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']
     p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
-    
     start_t, end_t = time_str.split('\n')
-    html_parts.append(f"<td class='{td_period_class}' style='background-color:{p_bg}; color:{p_fg};'>")
-    html_parts.append(f"<div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div>")
-    html_parts.append(f"<div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div>")
-    html_parts.append("</td>")
-    
+    html_parts.append(f"<td class='{td_period_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div><div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div></td>")
     for col, day in enumerate(days):
         row_num = row_idx + 1
         date_key = f"{(monday + timedelta(days=col)).strftime('%Y-%m-%d')}_{row_num}"
         subject = ""
         if period != "점심":
             s_idx = row_num - 2 if row_num < 6 else row_num - 3
-            if s_idx >= 0 and s_idx < len(base_schedule.get(day, [])): 
-                subject = base_schedule[day][s_idx]
-
+            if s_idx >= 0 and s_idx < len(base_schedule.get(day, [])): subject = base_schedule[day][s_idx]
         is_strike, is_custom = False, False
         if date_key in custom_data:
             val = custom_data[date_key]
             if val == "__STRIKE__": is_strike, is_custom = True, True
             else: subject, is_custom = val, True
-
         bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']
         fg = t['cell_fg']
         deco = "line-through" if is_strike else "none"
-
-        if is_strike:
-            fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
-            subject = subject if subject else "-"
+        if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
         elif is_custom: fg = "#e74c3c"
-            
         display = subject.replace('\n', '<br>') if subject else ""
-        td_cell_class = ""
-        if is_current_week and col == today_idx:
-            if row_idx == active_row: td_cell_class = "hl-fill-yellow"
-            elif row_idx == preview_row: td_cell_class = "hl-border-yellow"
-
-        html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'>")
-        html_parts.append(f"<div style='text-decoration:{deco}; font-size:14px; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div>")
-        html_parts.append("</td>")
-        
+        td_cell_class = "hl-fill-yellow" if (is_current_week and col == today_idx and row_idx == active_row) else ("hl-border-yellow" if (is_current_week and col == today_idx and row_idx == preview_row) else "")
+        html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:14px; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div></td>")
     html_parts.append("</tr>")
-
 html_parts.append("</table></div>")
 
-# 5. 메모장 렌더링
-html_parts.append("<div id='memo-section' style='margin-top:10px;'>")
-html_parts.append(f"<h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.logged_in_user} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3>")
-html_parts.append(f"<div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
-
+# 메모장 렌더링
+html_parts.append(f"<div id='memo-section' style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
 if memos_list:
     for i, m in enumerate(memos_list):
         num = len(memos_list) - i
-        text = m['memo_text']
-        is_strike = m.get('is_strike', False)
-        is_imp = m.get('is_important', False)
+        text, is_strike, is_imp = m['memo_text'], m.get('is_strike', False), m.get('is_important', False)
         prefix = "⭐ " if is_imp else ""
-        deco = "line-through" if is_strike else "none"
-        color = "gray" if is_strike else t['text']
-        
-        html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']};'>")
-        html_parts.append(f"<b>{num}.</b> {prefix}{text}")
-        html_parts.append("</div>")
-else:
-    html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
-
+        deco, color = ("line-through", "gray") if is_strike else ("none", t['text'])
+        html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']};'><b>{num}.</b> {prefix}{text}</div>")
+else: html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
 html_parts.append("</div></div></div>")
 
-# 완성된 HTML을 마크다운 에러 없이 출력
 st.markdown("".join(html_parts), unsafe_allow_html=True)
