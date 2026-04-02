@@ -32,7 +32,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 🚨 [완벽 종결] 스트림릿 640px 붕괴 로직을 원천 무력화하는 무적 CSS
+# 🚨 [선생님 아이디어 적용] 모바일 대응 초강력 1줄 고정 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
@@ -45,75 +45,94 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 🔥 스트림릿의 미디어 쿼리를 전면 무시하는 글로벌 선언 */
-        @media screen and (max-width: 9999px) {{
-            /* 가로 배치 구역 무조건 1줄 강제 */
-            div[data-testid="stHorizontalBlock"] {{
-                display: flex !important;
-                flex-direction: row !important;
-                flex-wrap: nowrap !important; /* 꺾임 절대 방지 */
-                align-items: center !important;
-                gap: 4px !important;
+        /* 기본적으로 모든 가로 블록은 1줄로 강제 */
+        div[data-testid="stHorizontalBlock"] {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 4px !important;
+        }}
+        div[data-testid="column"] {{
+            min-width: 0 !important; /* 모바일 강제 100% 확대 방지 */
+            width: auto !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }}
+
+        /* 💡 선생님의 아이디어 적용 구간 (640px 이하 모바일 환경 대응) */
+        @media screen and (max-width: 640px) {{
+            /* 1️⃣ 상단 헤더 (제목 + 이름) */
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(1) {{ flex: 1.5 1 auto !important; }}
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(2) {{ flex: 1 1 auto !important; max-width: 110px !important; }}
+
+            /* 2️⃣ 조종석 메뉴바 (7개 버튼) */
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="stHorizontalBlock"] {{
+                background-color: {t['top']} !important;
+                border-radius: 6px !important;
+                padding: 4px 2px !important;
+                margin-bottom: 8px !important;
+                gap: 2px !important; /* 간격을 최대한 줄임 */
             }}
-            div[data-testid="column"] {{
-                min-width: 0 !important;
-                width: auto !important; /* 모바일 강제 100% 폭 확장을 분쇄 */
-                padding: 0 !important;
-                margin: 0 !important;
+            
+            /* 제안해주신 flex: 1 1 auto 적용 (공간 부족 시 스스로 줄어들게 함) */
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"] {{ 
+                flex: 1 1 auto !important; 
+            }}
+            
+            /* '이번주' 버튼만 글씨가 길어서 가중치를 줌 */
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(2) {{ 
+                flex: 1.5 1 auto !important; 
             }}
 
-            /* 💡 [1단계] 헤더 (컬럼 2개짜리 구역) */
-            div[data-testid="column"]:first-child:nth-last-child(2) {{ flex: 1 1 auto !important; }}
-            div[data-testid="column"]:first-child:nth-last-child(2) ~ div[data-testid="column"] {{ flex: 0 0 100px !important; width: 100px !important; max-width: 100px !important; }}
+            /* 💡 제안해주신 폰트/높이 축소 적용 */
+            .stButton > button {{ 
+                font-size: 11px !important; 
+                height: 28px !important; 
+                padding: 0 !important; 
+                line-height: 1 !important;
+            }}
+            
+            /* 설정 톱니바퀴도 밸런스에 맞춤 */
+            div[data-testid="stPopover"] > button {{ 
+                font-size: 13px !important; 
+                height: 28px !important; 
+                padding: 0 !important; 
+            }}
+            
+            /* 이름 선택창 크기도 축소 */
+            div[data-baseweb="select"] {{ height: 28px !important; font-size: 12px !important; }}
+            div[data-baseweb="select"] > div {{ min-height: 28px !important; padding: 0 4px !important; }}
+        }}
+        
+        /* PC 환경 (640px 초과) 디자인 유지 */
+        @media screen and (min-width: 641px) {{
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(1) {{ flex: 1 1 auto !important; }}
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="column"]:nth-child(2) {{ flex: 0 0 120px !important; }}
+            
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="stHorizontalBlock"] {{
+                background-color: {t['top']} !important;
+                border-radius: 6px !important;
+                padding: 6px 4px !important;
+                margin-bottom: 8px !important;
+                max-width: 480px !important;
+            }}
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"] {{ flex: 1 1 0% !important; }}
+            .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(2) {{ flex: 1.5 1 0% !important; }}
 
-            /* 💡 [2단계] 조종석 (컬럼 7개짜리 구역) : 호환성을 위해 형제 개수 기반으로 픽셀 정밀 타격 */
-            /* 1. ◀ 버튼 */
-            div[data-testid="column"]:first-child:nth-last-child(7) {{ flex: 0 0 32px !important; width: 32px !important; max-width: 32px !important; }}
-            /* 2. 이번주 버튼 */
-            div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"]:nth-child(2) {{ flex: 0 0 50px !important; width: 50px !important; max-width: 50px !important; }}
-            /* 3. ▶ 버튼 */
-            div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"]:nth-child(3) {{ flex: 0 0 32px !important; width: 32px !important; max-width: 32px !important; }}
-            /* 4. 📝 버튼 */
-            div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"]:nth-child(4) {{ flex: 0 0 32px !important; width: 32px !important; max-width: 32px !important; }}
-            /* 5. ☀️ 버튼 */
-            div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"]:nth-child(5) {{ flex: 0 0 32px !important; width: 32px !important; max-width: 32px !important; }}
-            /* 6. 🌙 버튼 */
-            div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"]:nth-child(6) {{ flex: 0 0 32px !important; width: 32px !important; max-width: 32px !important; }}
-            /* 7. ⚙️ 설정 버튼 */
-            div[data-testid="column"]:first-child:nth-last-child(7) ~ div[data-testid="column"]:nth-child(7) {{ flex: 0 0 32px !important; width: 32px !important; max-width: 32px !important; }}
+            .stButton>button {{ height: 32px !important; font-size: 13px !important; border-radius: 4px !important; padding: 0 !important; width: 100% !important; font-weight: bold !important; background-color: transparent !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; }}
+            div[data-testid="stPopover"] > button {{ font-size: 15px !important; height: 32px !important; padding: 0 !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; }}
+            div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; }}
+            div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         }}
         
-        /* 초소형 드롭다운 박스 (이름선택바) */
-        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
-        
-        /* 버튼 공통 초소형 디자인 */
-        .stButton>button {{ 
-            height: 32px !important; 
-            border-radius: 4px !important; 
-            font-size: 13px !important; 
-            font-weight: bold !important; 
-            background-color: transparent !important; 
-            color: {t['text']} !important; 
-            border: 1px solid {t['grid']} !important; 
-            padding: 0 !important; 
-            line-height: 1 !important;
-            width: 100% !important;
-            min-width: 0 !important;
-        }}
-        
-        /* ON 상태 하이라이트 */
+        /* ON 상태 하이라이트 (공통) */
         .stButton>button[data-testid="baseButton-primary"] {{ 
             background-color: {t['hl_per']} !important; 
             color: #ffffff !important; 
             border: 1px solid {t['hl_per']} !important; 
         }}
-        
-        /* 설정 팝오버 아이콘 (화살표 숨김) */
-        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important; }}
         div[data-testid="stPopover"] svg {{ display: none !important; }}
-        
-        /* 알림창 폰트 색상 */
         div[data-testid="stAlert"] {{ border-radius: 8px !important; }}
         div[data-testid="stAlert"] p {{ color: #111111 !important; font-weight: bold !important; }}
     </style>
@@ -224,10 +243,10 @@ monday = target_date - timedelta(days=target_date.weekday())
 
 
 # ---------------------------------------------------------
-# 🚨 CSS 작동을 위해 컬럼 선언 구조를 엄격하게 지킵니다.
+# 🚨 CSS가 이 위치를 기준으로 정확히 인식하도록 DOM 구조 통제
 # ---------------------------------------------------------
 
-# 💡 [DOM 구역 1번] 상단 헤더: "제목(좌측) + 이름선택창(우측 아담하게 고정)"
+# 💡 [DOM 자식 1번] 상단 헤더: "제목(좌측) + 이름선택창(우측 아담하게)"
 col_h1, col_h2 = st.columns(2)
 with col_h1:
     st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
@@ -238,7 +257,7 @@ with col_h2:
         st.session_state.teacher = selected
         st.rerun()
 
-# 💡 [DOM 구역 2번] 7개 아이콘 조종석: 스트림릿의 모든 붕괴 로직을 무시하고 무조건 1줄로 고정
+# 💡 [DOM 자식 2번] 7개 아이콘 조종석: flex 1 1 auto 적용으로 유연하게 수축!
 c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
 
 with c1:
@@ -290,7 +309,7 @@ with c7:
             st.rerun()
             
         st.markdown("---")
-        # 💡 로그아웃 은닉화
+        # 💡 로그아웃을 설정창 안으로 이동
         if st.button("🔓 로그아웃", type="primary", use_container_width=True):
             st.session_state.logged_in_user = None
             st.query_params.clear() 
