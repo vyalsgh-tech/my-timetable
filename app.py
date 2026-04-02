@@ -51,7 +51,7 @@ if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
 # ---------------------------------------------------------
-# 💡 [새로운 로직] URL 라우팅으로 버튼 액션 처리 (새로고침 없는 빠른 이동)
+# 💡 URL 라우팅으로 버튼 액션 처리 (새로고침 없는 빠른 이동)
 # ---------------------------------------------------------
 params = st.query_params
 if "nav" in params:
@@ -220,7 +220,6 @@ with col_h2:
 
 # ---------------------------------------------------------
 # 2. 🔥 [혁명적 변화] 순수 HTML/CSS 툴바 & 자동 접기/펼치기
-# (파이썬 버튼을 완전히 버리고, 0초 반응속도의 CSS 체크박스 해킹 기법 적용)
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 is_today = (st.session_state.week_offset == 0)
@@ -241,7 +240,8 @@ full_html = f"""
         border-radius: 6px;
         margin-bottom: 10px;
         width: 100%;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        max-width: 460px; /* PC에서도 너무 길어지지 않게 통제 */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         gap: 2px;
     }}
     .tb-btn {{
@@ -308,25 +308,14 @@ full_html = f"""
     <table class="mobile-table">
 """
 
-# 헤더 요일 생성
-full_html += f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>"
-full_html += f"<th style='width: 13%; font-size:14px;'>교시</th>"
-for col, day in enumerate(days):
-    date_str = (monday + timedelta(days=col)).strftime("%m/%d")
-    th_class = "class='hl-border-red'" if (is_current_week and col == today_idx) else ""
-    th_bg = t['hl_per'] if (is_current_week and col == today_idx) else t['head_bg']
-    th_fg = 'white' if (is_current_week and col == today_idx and t['name'] != '웜 파스텔') else t['head_fg']
-    full_html += f"<th {th_class} style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>"
-full_html += "</tr>"
-
-# 시간표 데이터 매칭
+# 🚨 [수정사항 반영] 변수 계산을 루프 위로 끌어올림
 is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
 now_mins = now_kst.hour * 60 + now_kst.minute 
 active_row, preview_row = None, None
 base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
 
-for row_idx, (period, time_str) in enumerate(period_times):
+for row_idx, (period, time_range) in enumerate(period_times):
     start_str, end_str = time_range.split('\n')
     h1, m1 = map(int, start_str.split(':'))
     h2, m2 = map(int, end_str.split(':'))
@@ -339,6 +328,19 @@ for row_idx, (period, time_str) in enumerate(period_times):
         preview_row = row_idx
         break
 
+# 헤더 요일 생성
+full_html += f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>"
+full_html += f"<th style='width: 13%; font-size:14px;'>교시</th>"
+for col, day in enumerate(days):
+    date_str = (monday + timedelta(days=col)).strftime("%m/%d")
+    th_class = "class='hl-border-red'" if (is_current_week and col == today_idx) else ""
+    th_bg = t['hl_per'] if (is_current_week and col == today_idx) else t['head_bg']
+    th_fg = 'white' if (is_current_week and col == today_idx and t['name'] != '웜 파스텔') else t['head_fg']
+    full_html += f"<th {th_class} style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>"
+full_html += "</tr>"
+
+
+# 시간표 본문 생성
 for row_idx, (period, time_str) in enumerate(period_times):
     # 💡 접기/펼치기를 위해 클래스 부여 (row-zero, row-extra)
     row_class = ""
