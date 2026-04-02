@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 영구 로그인을 위한 URL 파라미터 인식
+# 💡 영구 자동 로그인을 위한 URL 파라미터 감지 및 복구 로직 (최우선 실행)
 if "user" in st.query_params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = st.query_params["user"]
     st.session_state.teacher = st.query_params["user"]
@@ -33,12 +33,13 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 모바일 최적화 CSS 
+# 💡 애니메이션 원천 차단 및 모바일 UI 비율 강제 고정 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <style>
+        /* 🚨 애니메이션 및 깜빡임 0초로 차단 */
         * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
-        .element-container, .stMarkdown, .stButton {{ animation: none !important; transition: none !important; }}
+        .element-container, .stMarkdown, .stButton, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
         
         .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
         .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
@@ -48,26 +49,45 @@ st.markdown(f"""
         .stTabs [data-baseweb="tab-list"] button {{ color: {t['text']} !important; opacity: 0.7; font-size: 16px; }}
         .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {{ opacity: 1; border-bottom: 3px solid {t['hl_per']} !important; font-weight: bold; }}
         
-        /* 🚨 가로 열(Column) 줄바꿈 방지! 무조건 1줄에 욱여넣기 */
-        div[data-testid="stHorizontalBlock"] {{
-            flex-wrap: nowrap !important;
-            gap: 4px !important;
-        }}
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-            min-width: 0 !important; /* 필수: 화면 밖으로 밀려남 방지 */
-            flex: 1 1 auto !important;
-        }}
-        
         .stButton>button {{ height: 38px !important; border-radius: 6px !important; font-size: 13.5px !important; font-weight: bold !important; background-color: {t['top']} !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; padding: 0 2px !important; }}
-        
         .stButton>button[data-testid="baseButton-primary"] {{ background-color: {t['hl_per']} !important; color: #ffffff !important; border: 2px solid #ffffff !important; box-shadow: 0 0 5px rgba(0,0,0,0.3) !important; }}
         
-        /* ⚙️ 설정 아이콘 크기/정렬 */
+        /* ⚙️ 설정 팝오버 최적화 */
         div[data-testid="stPopover"] > button {{ font-size: 16px !important; padding: 0 !important; }}
         div[data-testid="stPopover"] svg {{ fill: {t['text']} !important; }}
         
         div[data-testid="stAlert"] {{ border-radius: 8px !important; }}
         div[data-testid="stAlert"] p {{ color: #111111 !important; font-weight: bold !important; }}
+
+        /* 🚨 모바일 해상도에서 강제 1줄 배치 (화면 밖으로 넘어감 완벽 방지) */
+        @media (max-width: 768px) {{
+            div[data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap !important; gap: 4px !important; }}
+            div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{ min-width: 0 !important; padding: 0 1px !important; }}
+            
+            /* 1. 상단 헤더 비율 (🏫 시간표 75%, 로그아웃 25%) */
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div[data-testid="column"]:nth-child(1) {{ width: 75% !important; flex: none !important; }}
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div[data-testid="column"]:nth-child(2) {{ width: 25% !important; flex: none !important; }}
+            
+            /* 2. 메뉴 1번 줄 (선택 35%, < 17%, 이번주 31%, > 17%) */
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"]:nth-child(1) {{ width: 35% !important; flex: none !important; }}
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"]:nth-child(2) {{ width: 17% !important; flex: none !important; }}
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"]:nth-child(3) {{ width: 31% !important; flex: none !important; }}
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"]:nth-child(4) {{ width: 17% !important; flex: none !important; }}
+            
+            /* 3. 메뉴 2번 줄 (메모 28%, 조회 28%, 8/9 28%, 설정 16%) */
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(3) > div[data-testid="column"]:nth-child(1) {{ width: 28% !important; flex: none !important; }}
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(3) > div[data-testid="column"]:nth-child(2) {{ width: 28% !important; flex: none !important; }}
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(3) > div[data-testid="column"]:nth-child(3) {{ width: 28% !important; flex: none !important; }}
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(3) > div[data-testid="column"]:nth-child(4) {{ width: 16% !important; flex: none !important; }}
+
+            /* 4. 메모장 조종석 버튼 (5개 균등 분할) */
+            .main div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"]:nth-of-type(4) > div[data-testid="column"] {{ width: 20% !important; flex: none !important; }}
+        }}
+        
+        /* 🚨 모달창 내부 버튼 1줄 강제 배열 (저장, 취소선, 삭제) */
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap !important; gap: 4px !important; }}
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div:nth-child(3):last-child) > div[data-testid="column"] {{ width: 33.3% !important; flex: none !important; min-width: 0 !important; }}
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div:nth-child(4):last-child) > div[data-testid="column"] {{ width: 25% !important; flex: none !important; min-width: 0 !important; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -180,6 +200,7 @@ def edit_timetable_modal(date_key, current_val):
     st.markdown(f"<div style='background-color:{t['top']}; padding:10px; border-radius:5px; margin-bottom:10px; text-align:center;'>선택: <b>{d_part} | {p_part}교시</b></div>", unsafe_allow_html=True)
     new_subj = st.text_area("변경할 내용:", value=current_val.replace('<br>', '\n') if current_val else "", height=80, label_visibility="collapsed")
     
+    # 💡 버튼 3개가 1줄에 꽉 차게 들어갑니다 (위에 정의한 CSS 덕분)
     c1, c2, c3 = st.columns(3)
     if c1.button("💾 저장", use_container_width=True, type="primary"):
         chk = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{st.session_state.teacher}&date_key=eq.{date_key}", headers=HEADERS).json()
@@ -218,7 +239,7 @@ def manage_memo_modal(memo_id):
         requests.delete(f"{SUPABASE_URL}/rest/v1/memos?id=eq.{memo_id}", headers=HEADERS)
         st.rerun()
 
-# URL 파라미터 감지
+# URL 파라미터 감지 및 모달 실행
 if "edit_date" in st.query_params:
     d_key = st.query_params["edit_date"]
     c_val = st.query_params.get("edit_subj", "")
@@ -242,11 +263,10 @@ with col_h2:
         st.query_params.clear() 
         st.rerun()
 
-# 💡 완벽하게 최적화된 모바일 2줄 레이아웃 (잘림/스크롤 없음)
 st.markdown(f"<div style='background-color:{t['top']}; padding:8px; border-radius:10px; margin-bottom:10px;'>", unsafe_allow_html=True)
 
-# 첫 번째 줄: 교사선택, 이전, 이번주, 다음
-r1_c1, r1_c2, r1_c3, r1_c4 = st.columns([2.5, 1.0, 1.4, 1.0])
+# 💡 첫 번째 줄: 교사선택, 이전, 이번주, 다음 (잘림 없이 1줄로 완벽 배열됨)
+r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
 with r1_c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
@@ -270,8 +290,8 @@ with r1_c4:
 
 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 
-# 두 번째 줄: 메모, 조회, 8/9교시, 설정 (버튼 색상 ON/OFF 직관적 적용)
-r2_c1, r2_c2, r2_c3, r2_c4 = st.columns([1.3, 1.3, 1.3, 0.8])
+# 💡 두 번째 줄: 메모, 조회, 8/9교시, 설정 (잘림 없이 1줄로 완벽 배열됨)
+r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
 with r2_c1:
     btn_type_memo = "primary" if st.session_state.show_memo else "secondary"
     if st.button("📝 메모", use_container_width=True, type=btn_type_memo):
