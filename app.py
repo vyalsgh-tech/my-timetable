@@ -32,87 +32,6 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 🚨 [절대 방어] 스트림릿의 모바일 붕괴 로직(640px 이하 강제 세로정렬)을 완벽 차단하는 CSS
-st.markdown(f"""
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
-    <style>
-        html, body, .stApp {{ touch-action: auto !important; }}
-        * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
-        .element-container, .stMarkdown, .stButton, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
-        
-        .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
-        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
-        .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
-        header {{ visibility: hidden; }}
-        
-        /* 🔥 스트림릿의 미디어 쿼리를 이기기 위한 강력한 글로벌 선언 */
-        @media screen and (max-width: 9999px) {{
-            /* 모든 가로 배치 구역이 절대로 줄이 꺾이지 않도록 강제 (헤더, 조종석 모두 포함) */
-            div[data-testid="stHorizontalBlock"] {{
-                display: flex !important;
-                flex-direction: row !important;
-                flex-wrap: nowrap !important;
-                align-items: center !important;
-                gap: 3px !important;
-                overflow: visible !important;
-            }}
-            /* 모바일 100% 폭 강제 확장을 분쇄하고, 내용을 동일한 비율로 쪼갬 */
-            div[data-testid="column"] {{
-                width: auto !important;
-                min-width: 0 !important;
-                flex: 1 1 0% !important;
-                padding: 0 1px !important;
-                margin: 0 !important;
-            }}
-            
-            /* 💡 8개 버튼이 들어간 조종석 메뉴바만 정밀 조준 */
-            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) {{
-                padding: 4px 2px !important;
-                background-color: {t['top']} !important;
-                border-radius: 6px !important;
-                margin-bottom: 8px !important;
-            }}
-            /* 이름칸 (딱 80px 방어막) */
-            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(1) {{ flex: 0 0 80px !important; }}
-            /* 이번주 버튼칸 (딱 45px 방어막) */
-            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(3) {{ flex: 0 0 45px !important; }}
-            
-            /* 헤더(로고 + 로그아웃) 비율 조준 */
-            div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(2):last-child) > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 35px !important; }}
-        }}
-        
-        /* 초소형 드롭다운 박스 */
-        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 4px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
-        
-        /* 버튼 공통 초소형 디자인 */
-        .stButton>button {{ 
-            height: 32px !important; 
-            border-radius: 4px !important; 
-            font-size: 12px !important; 
-            font-weight: bold !important; 
-            background-color: transparent !important; 
-            color: {t['text']} !important; 
-            border: 1px solid {t['grid']} !important; 
-            padding: 0 !important; 
-            line-height: 1 !important;
-            width: 100% !important;
-            min-width: 0 !important;
-        }}
-        
-        /* ON 상태 하이라이트 */
-        .stButton>button[data-testid="baseButton-primary"] {{ 
-            background-color: {t['hl_per']} !important; 
-            color: #ffffff !important; 
-            border: 1px solid {t['hl_per']} !important; 
-        }}
-        
-        /* 설정 팝오버 아이콘 */
-        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important; }}
-        div[data-testid="stPopover"] svg {{ display: none; }}
-    </style>
-""", unsafe_allow_html=True)
-
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {
@@ -122,7 +41,6 @@ HEADERS = {
     "Prefer": "return=representation"
 }
 
-# --- DB 로그인 인증 함수 ---
 def verify_and_load_user(user_id):
     r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{user_id}", headers=HEADERS)
     if r.status_code == 200 and len(r.json()) > 0:
@@ -169,6 +87,88 @@ if st.session_state.logged_in_user is None:
                     if r2.status_code in [200, 201]: st.success("계정 생성 완료! 로그인 탭에서 접속해주세요.")
                     else: st.error("생성 실패.")
     st.stop()
+
+
+# 🚨 [초강력 핵심] 스트림릿 640px 붕괴 로직 완전 차단 CSS
+# 주의: 이 CSS는 레이아웃 요소의 순서(자식 번호)를 기반으로 100% 작동합니다.
+st.markdown(f"""
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
+    <style>
+        html, body, .stApp {{ touch-action: auto !important; }}
+        * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
+        
+        .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
+        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
+        .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
+        header {{ visibility: hidden; }}
+        
+        /* 🚨 [1단계 절대 방어] 모든 Horizontal Block의 100% 모바일 확장을 분쇄합니다 */
+        div[data-testid="stHorizontalBlock"] {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important; /* 무조건 한 줄 */
+            align-items: center !important;
+            overflow: visible !important;
+        }}
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            min-width: 0 !important; 
+            width: auto !important; /* 640px 이하 width 100% 무력화 */
+            padding: 0 1px !important;
+            margin: 0 !important;
+        }}
+
+        /* 🚨 [2단계 절대 방어] 상단 헤더 영역 (명덕외고 뷰어 | 로그아웃) */
+        .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {{ flex: 1 1 auto !important; }}
+        .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(2) div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 35px !important; width: 35px !important; }}
+
+        /* 🚨 [3단계 절대 방어] 8개의 아이콘 메뉴 조종석 전용 1줄 압축 세팅 */
+        .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="stHorizontalBlock"] {{
+            background-color: {t['top']} !important;
+            border-radius: 6px !important;
+            padding: 5px 3px !important;
+            margin-bottom: 8px !important;
+            gap: 2px !important;
+        }}
+        
+        /* 이름칸 (딱 80px 방어막) */
+        .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(1) {{ flex: 0 0 80px !important; width: 80px !important; }}
+        /* 이번주 버튼칸 (딱 48px 방어막) */
+        .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:nth-child(3) {{ flex: 0 0 48px !important; width: 48px !important; }}
+        /* 나머지 6개 버튼은 빈 공간을 공평하게 분배 */
+        .main div[data-testid="stVerticalBlock"] > div.element-container:nth-child(3) div[data-testid="column"]:not(:nth-child(1)):not(:nth-child(3)) {{ flex: 1 1 0% !important; }}
+        
+        /* 💡 드롭다운 UI 초소형 최적화 */
+        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
+        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
+        
+        /* 💡 버튼 UI 초소형 최적화 */
+        .stButton>button {{ 
+            height: 32px !important; 
+            border-radius: 4px !important; 
+            font-size: 12px !important; 
+            font-weight: bold !important; 
+            background-color: transparent !important; 
+            color: {t['text']} !important; 
+            border: 1px solid {t['grid']} !important; 
+            padding: 0 !important; 
+            line-height: 1 !important;
+            width: 100% !important;
+            min-width: 0 !important;
+        }}
+        
+        /* ON 상태 하이라이트 */
+        .stButton>button[data-testid="baseButton-primary"] {{ 
+            background-color: {t['hl_per']} !important; 
+            color: #ffffff !important; 
+            border: 1px solid {t['hl_per']} !important; 
+        }}
+        
+        /* 설정 팝오버 아이콘 */
+        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important; }}
+        div[data-testid="stPopover"] svg {{ display: none; }}
+    </style>
+""", unsafe_allow_html=True)
+
 
 # --- 메인 데이터 로드 (읽기 전용) ---
 @st.cache_data
@@ -217,7 +217,11 @@ target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 
 
-# --- 상단 헤더 ---
+# ---------------------------------------------------------
+# 🚨 절대 주의: DOM 순서 고정 구역 (CSS가 이 순서를 기반으로 작동함)
+# ---------------------------------------------------------
+
+# 💡 DOM 자식 2번: 상단 헤더
 col_h1, col_h2 = st.columns(2)
 with col_h1:
     st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
@@ -227,7 +231,7 @@ with col_h2:
         st.query_params.clear() 
         st.rerun()
 
-# 💡 [핵심] 8개의 요소가 어떠한 환경에서도 '무조건' 한 줄에 배치됩니다.
+# 💡 DOM 자식 3번: 조종석 메뉴바 (무조건 8칸 1줄 배치됨)
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
 
 with c1:
@@ -292,7 +296,9 @@ with c8:
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
                 st.success("완료!")
 
-# --- 시간표 렌더링 (뷰어 전용) ---
+# 💡 DOM 자식 4번: 시간표 렌더링 영역 (이하 동일)
+# ---------------------------------------------------------
+
 is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
 now_mins = now_kst.hour * 60 + now_kst.minute 
@@ -394,6 +400,7 @@ for row_idx, (period, time_str) in enumerate(period_times):
 html += "</table></div>"
 
 st.markdown(html, unsafe_allow_html=True)
+
 
 # --- 프라이빗 메모장 (읽기 전용 뷰어) ---
 if st.session_state.show_memo:
