@@ -50,32 +50,49 @@ def verify_and_load_user(user_id):
 if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
-# --- ⚙️ 설정 모달창 ---
+# --- ⚙️ 설정 및 관리자 모달창 ---
 @st.dialog("⚙️ 설정 및 관리")
 def settings_modal():
-    teacher_list = list(teachers_data.keys()) if 'teachers_data' in locals() else [st.session_state.logged_in_user]
+    # 🎨 테마 및 폰트 설정
     new_theme = st.selectbox("🎨 테마 변경", [th['name'] for th in themes], index=st.session_state.theme_idx)
     if new_theme != themes[st.session_state.theme_idx]['name']:
         new_idx = [th['name'] for th in themes].index(new_theme)
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"theme_idx": new_idx})
         st.session_state.theme_idx = new_idx
         st.rerun()
+    
     new_font = st.selectbox("A 폰트 변경", ["맑은 고딕", "바탕", "돋움", "굴림", "Arial"], index=["맑은 고딕", "바탕", "돋움", "굴림", "Arial"].index(st.session_state.font_name))
     if new_font != st.session_state.font_name:
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
         st.session_state.font_name = new_font
         st.rerun()
+    
     st.markdown("---")
+    
+    # 🔓 로그아웃
     if st.button("🔓 로그아웃", type="primary", use_container_width=True):
         st.session_state.logged_in_user = None
         st.query_params.clear() 
         st.rerun()
+    
+    # 👨‍🏫 [관리자 전용] 비밀번호 초기화 기능
     if st.session_state.logged_in_user == "표민호":
-        st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 [관리자] 비번 1234 초기화</div>", unsafe_allow_html=True)
-        reset_target = st.selectbox("대상 선택", teacher_list, key="reset_pw", label_visibility="collapsed")
-        if st.button("초기화 실행", use_container_width=True):
-            requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
-            st.success("완료!")
+        st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 [관리자] 가입자 비번 초기화</div>", unsafe_allow_html=True)
+        # 💡 DB에서 실제 가입된 사람 명단만 실시간 호출
+        try:
+            r_users = requests.get(f"{SUPABASE_URL}/rest/v1/users?select=teacher_name", headers=HEADERS)
+            if r_users.status_code == 200:
+                registered_list = [row['teacher_name'] for row in r_users.json()]
+                reset_target = st.selectbox("초기화할 계정 선택", registered_list, key="reset_pw_admin")
+                
+                if st.button(f"'{reset_target}' 비번을 '123'으로 초기화", use_container_width=True):
+                    res = requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "123"})
+                    if res.status_code == 200:
+                        st.success(f"완료! {reset_target} 선생님의 비밀번호가 123으로 변경되었습니다.")
+                    else:
+                        st.error("초기화에 실패했습니다.")
+        except:
+            st.error("가입자 명단을 불러오지 못했습니다.")
 
 # --- 데이터 로드 ---
 @st.cache_data
@@ -100,7 +117,6 @@ def load_csv():
     return t_data
 
 teachers_data = load_csv()
-teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 
 custom_data = {}
 memos_list = []
@@ -152,7 +168,7 @@ if st.session_state.logged_in_user is None:
                 else: st.error("등록되지 않은 선생님입니다.")
     st.stop()
 
-# --- 날짜 및 시간표 로직 ---
+# --- 날짜 계산 ---
 days = ["월", "화", "수", "목", "금"]
 period_times = [
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
@@ -168,7 +184,7 @@ is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
 now_mins = now_kst.hour * 60 + now_kst.minute 
 
-# 💡 글로벌 CSS 설정 (헤더 및 툴바 460px 고정)
+# 💡 글로벌 CSS 설정 (헤더 고정)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; }}
@@ -179,7 +195,6 @@ st.markdown(f"""
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 🚨 1. 상단 헤더: 제목 폭 460px 고정 및 정렬 */
     .header-container {{
         max-width: 460px !important;
         width: 100% !important;
@@ -191,18 +206,13 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 1. 상단 헤더 (이름선택창 제거, 제목만 고정)
-# ---------------------------------------------------------
+# 1. 상단 헤더
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어</div></div>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 2. 🔥 순수 HTML 툴바 (폭 460px 고정)
-# ---------------------------------------------------------
+# 2. 🔥 순수 HTML 툴바
 u = st.session_state.logged_in_user
 cur_w = st.session_state.week_offset
 cur_t = st.session_state.teacher
-
 link_prev = f"/?user={u}&w={cur_w - 1}&t={cur_t}"
 link_next = f"/?user={u}&w={cur_w + 1}&t={cur_t}"
 link_today = f"/?user={u}&w=0&t={cur_t}"
@@ -210,7 +220,6 @@ link_set = f"/?user={u}&w={cur_w}&t={cur_t}&action=settings"
 
 bg_today = t['hl_per'] if (cur_w == 0) else "transparent"
 fg_today = "#ffffff" if (cur_w == 0) else t['text']
-
 chk_memo_attr = "checked='checked'" if st.session_state.show_memo else ""
 chk_zero_attr = "checked='checked'" if st.session_state.show_zero else ""
 chk_extra_attr = "checked='checked'" if st.session_state.show_extra else ""
@@ -249,7 +258,6 @@ html_parts.append("<label class='tb-btn' for='chk-extra'>🌙</label>")
 html_parts.append(f"<a class='tb-btn' href='{link_set}' target='_self'>⚙️</a>")
 html_parts.append("</div>")
 
-# 시간표 본문
 html_parts.append(f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'>")
 html_parts.append("<table class='mobile-table'>")
 html_parts.append(f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>")
@@ -263,7 +271,7 @@ for col, day in enumerate(days):
     html_parts.append(f"<th class='{th_class}' style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>")
 html_parts.append("</tr>")
 
-# 활성 교시 계산
+base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
 active_row, preview_row = None, None
 for row_idx, (period, time_range) in enumerate(period_times):
     start_str, end_str = time_range.split('\n')
@@ -278,7 +286,6 @@ for row_idx, (period, time_range) in enumerate(period_times):
         preview_row = row_idx
         break
 
-base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
 for row_idx, (period, time_str) in enumerate(period_times):
     row_class = "row-zero" if period == "조회" else ("row-extra" if period in ["8교시", "9교시"] else "")
     td_period_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""
