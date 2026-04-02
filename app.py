@@ -45,60 +45,57 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 🚨 8개의 아이콘이 들어간 메뉴바만 정밀 타격하여 1줄로 강제 압축 */
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) {{
+        /* 🚨 [절대 방어] 모바일에서 줄이 꺾이는 현상 원천 차단 */
+        div[data-testid="stHorizontalBlock"] {{
             display: flex !important;
             flex-direction: row !important;
-            flex-wrap: nowrap !important;
+            flex-wrap: nowrap !important; /* 절대 줄바꿈 금지 */
             align-items: center !important;
-            gap: 3px !important;
-            padding: 4px 2px !important;
+            gap: 2px !important; /* 버튼 사이 여백 최소화 */
+            overflow: visible !important;
+        }}
+        
+        div[data-testid="column"] {{
+            min-width: 0 !important; /* 모바일 강제 100% 확장 무력화 */
+            width: auto !important;
+            padding: 0 1px !important;
+        }}
+        
+        /* 메뉴바 배경 디자인 */
+        div[data-testid="stHorizontalBlock"]:nth-of-type(2) {{
             background-color: {t['top']} !important;
             border-radius: 6px !important;
+            padding: 5px 3px !important;
             margin-bottom: 8px !important;
         }}
         
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"] {{
-            min-width: 0 !important; 
-            padding: 0 !important;
-        }}
+        /* 초소형 드롭다운 박스 */
+        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; }}
+        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         
-        /* 1️⃣ 드롭다운 박스는 딱 85px로 고정 (화면이 작아져도 안 늘어남) */
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"]:nth-child(1) {{ flex: 0 0 85px !important; }}
-        
-        /* 3️⃣ '이번주' 버튼은 딱 48px로 고정 */
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"]:nth-child(3) {{ flex: 0 0 48px !important; }}
-        
-        /* 2️⃣ 나머지 6개 아이콘은 남은 공간을 똑같이 나눠가짐 */
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(8)) > div[data-testid="column"]:not(:nth-child(1)):not(:nth-child(3)) {{ flex: 1 1 0 !important; }}
-        
-        /* 드롭다운 UI 초소형 최적화 */
-        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 0 0 4px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
-        
-        /* 버튼 UI 초소형 최적화 */
+        /* 아이콘 버튼 초소형 디자인 */
         .stButton>button {{ 
             height: 32px !important; 
             border-radius: 4px !important; 
-            font-size: 12px !important; 
+            font-size: 13px !important; 
             font-weight: bold !important; 
             background-color: transparent !important; 
             color: {t['text']} !important; 
             border: 1px solid {t['grid']} !important; 
             padding: 0 !important; 
+            line-height: 1 !important;
             width: 100% !important;
-            min-width: 0 !important;
         }}
         
-        /* ON 상태 하이라이트 */
+        /* 선택(ON) 상태 강조 */
         .stButton>button[data-testid="baseButton-primary"] {{ 
             background-color: {t['hl_per']} !important; 
             color: #ffffff !important; 
             border: 1px solid {t['hl_per']} !important; 
         }}
         
-        /* 설정 팝오버 아이콘 */
-        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; border: 1px solid {t['grid']} !important; min-width: 0 !important; width: 100% !important; background-color: transparent !important; color: {t['text']} !important; }}
+        /* 설정 아이콘 내 화살표 제거 및 크기 고정 */
+        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; }}
         div[data-testid="stPopover"] svg {{ display: none; }}
     </style>
 """, unsafe_allow_html=True)
@@ -209,15 +206,15 @@ monday = target_date - timedelta(days=target_date.weekday())
 # --- 상단 헤더 ---
 col_h1, col_h2 = st.columns([8, 2])
 with col_h1:
-    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
     if st.button("🔓", use_container_width=True, help="로그아웃"):
         st.session_state.logged_in_user = None
         st.query_params.clear() 
         st.rerun()
 
-# 💡 강제 1줄 압축 아이콘 배열 (무조건 8개의 컬럼을 사용하여 CSS 트리거 발동)
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
+# 💡 [핵심] 완벽한 1줄 강제 배율 지정 (이름칸은 1.8배, 이번주는 1.2배, 나머지는 동일하게 0.8배)
+c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.8, 0.8, 1.2, 0.8, 0.8, 0.8, 0.8, 0.8])
 with c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
@@ -272,11 +269,13 @@ with c8:
             requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
             st.session_state.font_name = new_font
             st.rerun()
+        
+        # 관리자 비번 초기화
         if st.session_state.logged_in_user == "표민호":
             st.markdown("---")
-            st.markdown("<div style='font-size:12px; font-weight:bold;'>👨‍🏫 비번 초기화</div>", unsafe_allow_html=True)
-            reset_target = st.selectbox("대상", teacher_list, key="reset_pw", label_visibility="collapsed")
-            if st.button("1234로 변경", type="primary", use_container_width=True):
+            st.markdown("<div style='font-size:12px; font-weight:bold;'>👨‍🏫 비번 1234로 초기화</div>", unsafe_allow_html=True)
+            reset_target = st.selectbox("대상 선택", teacher_list, key="reset_pw", label_visibility="collapsed")
+            if st.button("실행", type="primary", use_container_width=True):
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
                 st.success("완료!")
 
@@ -358,6 +357,7 @@ for row_idx, (period, time_str) in enumerate(period_times):
             if val == "__STRIKE__": is_strike, is_custom = True, True
             else: subject, is_custom = val, True
 
+        # 💡 조회 & 점심 블록 색상 어둡게 통일
         bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']
         fg = t['cell_fg']
         deco = "line-through" if is_strike else "none"
