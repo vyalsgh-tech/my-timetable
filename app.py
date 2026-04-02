@@ -152,7 +152,7 @@ if st.session_state.logged_in_user is None:
                 else: st.error("등록되지 않은 선생님입니다.")
     st.stop()
 
-# --- 날짜 계산 ---
+# --- 날짜 및 시간표 로직 ---
 days = ["월", "화", "수", "목", "금"]
 period_times = [
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
@@ -168,7 +168,7 @@ is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
 now_mins = now_kst.hour * 60 + now_kst.minute 
 
-# 💡 글로벌 CSS 설정 (헤더 640px 이하 붕괴 방어 및 이름창 🌙위치 고정)
+# 💡 글로벌 CSS 설정 (헤더 및 툴바 460px 고정)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; }}
@@ -179,50 +179,22 @@ st.markdown(f"""
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 🚨 640px 이하에서 컬럼이 세로로 쌓이는 스트림릿 로직 강제 무력화 */
-    div[data-testid="stHorizontalBlock"]:first-of-type {{
-        display: flex !important; 
-        flex-direction: row !important; 
-        flex-wrap: nowrap !important; 
-        align-items: center !important;
-        justify-content: space-between !important;
-        max-width: 460px !important; /* 아래 툴바와 동일한 폭으로 고정 */
+    /* 🚨 1. 상단 헤더: 제목 폭 460px 고정 및 정렬 */
+    .header-container {{
+        max-width: 460px !important;
         width: 100% !important;
         margin: 0 auto 5px 0 !important;
+        display: flex !important;
+        align-items: center;
+        padding-left: 2px;
     }}
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"] {{
-        min-width: 0 !important; 
-        width: auto !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }}
-    /* 제목 구역 */
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ flex: 1 1 auto !important; }}
-    /* 이름창 구역: 🌙 아이콘 시작위치부터 끝선까지인 약 123px 폭으로 절대 고정 */
-    div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ 
-        flex: 0 0 123px !important; 
-        width: 123px !important; 
-        max-width: 123px !important; 
-        min-width: 123px !important; 
-    }}
-
-    div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
-    div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 (제목 + 이름창: 460px 폭 안에서 🌙 위로 강제 고정)
+# 1. 상단 헤더 (이름선택창 제거, 제목만 고정)
 # ---------------------------------------------------------
-col_h1, col_h2 = st.columns([1, 1]) # CSS에서 비율을 완전히 재정의함
-with col_h1:
-    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
-with col_h2:
-    idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
-    selected = st.selectbox("교사", teacher_list, index=idx, label_visibility="collapsed")
-    if selected != st.session_state.teacher:
-        st.session_state.teacher = selected
-        st.rerun()
+st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어</div></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 2. 🔥 순수 HTML 툴바 (폭 460px 고정)
