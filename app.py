@@ -32,7 +32,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 [초강력 핵심] 스트림릿 모바일 붕괴 방어 & 강제 1줄 압축 CSS
+# 💡 [초강력 핵심] 스트림릿 640px 붕괴 로직 완전 차단 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
     <style>
@@ -45,39 +45,56 @@ st.markdown(f"""
         .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
         header {{ visibility: hidden; }}
         
-        /* 🚨 [절대 방어] 모바일에서 줄이 꺾이는 현상 원천 차단 */
-        div[data-testid="stHorizontalBlock"] {{
+        /* 🚨 [절대 방어] 640px 이하 모바일 강제 줄바꿈 및 100% 확대 원천 차단 */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) {{
             display: flex !important;
             flex-direction: row !important;
-            flex-wrap: nowrap !important; /* 절대 줄바꿈 금지 */
+            flex-wrap: nowrap !important;
             align-items: center !important;
-            gap: 2px !important; /* 버튼 사이 여백 최소화 */
-            overflow: visible !important;
-        }}
-        
-        div[data-testid="column"] {{
-            min-width: 0 !important; /* 모바일 강제 100% 확장 무력화 */
-            width: auto !important;
-            padding: 0 1px !important;
-        }}
-        
-        /* 메뉴바 배경 디자인 */
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) {{
+            gap: 3px !important;
+            padding: 4px 2px !important;
             background-color: {t['top']} !important;
             border-radius: 6px !important;
-            padding: 5px 3px !important;
             margin-bottom: 8px !important;
         }}
         
-        /* 초소형 드롭다운 박스 */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"] {{
+            min-width: 0 !important; 
+            padding: 0 !important;
+            margin: 0 !important;
+            /* 💡 스트림릿이 640px 이하에서 부여하는 width: 100%를 무력화 */
+            width: auto !important; 
+        }}
+        
+        /* 1️⃣ 드롭다운 박스는 딱 85px로 철통 방어 고정 */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(1) {{ 
+            flex: 0 0 85px !important; 
+            width: 85px !important;
+            max-width: 85px !important;
+        }}
+        
+        /* 3️⃣ '이번주' 버튼은 딱 50px로 고정 */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:nth-child(3) {{ 
+            flex: 0 0 50px !important; 
+            width: 50px !important;
+            max-width: 50px !important;
+        }}
+        
+        /* 2️⃣ 나머지 6개 아이콘은 남은 공간을 균등 분배 */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(8)) > div[data-testid="column"]:not(:nth-child(1)):not(:nth-child(3)) {{ 
+            flex: 1 1 0% !important; 
+            width: auto !important;
+        }}
+        
+        /* 드롭다운 UI 초소형 최적화 */
         div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; }}
         div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
         
-        /* 아이콘 버튼 초소형 디자인 */
+        /* 버튼 UI 초소형 최적화 */
         .stButton>button {{ 
             height: 32px !important; 
             border-radius: 4px !important; 
-            font-size: 13px !important; 
+            font-size: 12px !important; 
             font-weight: bold !important; 
             background-color: transparent !important; 
             color: {t['text']} !important; 
@@ -85,17 +102,18 @@ st.markdown(f"""
             padding: 0 !important; 
             line-height: 1 !important;
             width: 100% !important;
+            min-width: 0 !important;
         }}
         
-        /* 선택(ON) 상태 강조 */
+        /* ON 상태 하이라이트 */
         .stButton>button[data-testid="baseButton-primary"] {{ 
             background-color: {t['hl_per']} !important; 
             color: #ffffff !important; 
             border: 1px solid {t['hl_per']} !important; 
         }}
         
-        /* 설정 아이콘 내 화살표 제거 및 크기 고정 */
-        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; }}
+        /* 설정 팝오버 아이콘 */
+        div[data-testid="stPopover"] > button {{ font-size: 15px !important; padding: 0 !important; height: 32px !important; width: 100% !important; border: 1px solid {t['grid']} !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important; }}
         div[data-testid="stPopover"] svg {{ display: none; }}
     </style>
 """, unsafe_allow_html=True)
@@ -203,18 +221,21 @@ now_kst = datetime.now(kst_tz)
 target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 
+
 # --- 상단 헤더 ---
 col_h1, col_h2 = st.columns([8, 2])
 with col_h1:
-    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 뷰어</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:16px; font-weight:800; margin-top:2px;'>🏫 명덕외고 시간표 뷰어</div>", unsafe_allow_html=True)
 with col_h2:
     if st.button("🔓", use_container_width=True, help="로그아웃"):
         st.session_state.logged_in_user = None
         st.query_params.clear() 
         st.rerun()
 
-# 💡 [핵심] 완벽한 1줄 강제 배율 지정 (이름칸은 1.8배, 이번주는 1.2배, 나머지는 동일하게 0.8배)
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.8, 0.8, 1.2, 0.8, 0.8, 0.8, 0.8, 0.8])
+# 💡 [핵심] 8개의 요소가 무조건 한 줄에 배치되도록 컬럼 할당
+# 파이썬 레벨에서도 8개를 배분하지만 실제 크기 제한은 위에서 작성한 CSS가 강력하게 통제합니다.
+c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
+
 with c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
     idx = teacher_list.index(st.session_state.teacher) if st.session_state.teacher in teacher_list else 0
@@ -269,15 +290,14 @@ with c8:
             requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
             st.session_state.font_name = new_font
             st.rerun()
-        
-        # 관리자 비번 초기화
         if st.session_state.logged_in_user == "표민호":
             st.markdown("---")
-            st.markdown("<div style='font-size:12px; font-weight:bold;'>👨‍🏫 비번 1234로 초기화</div>", unsafe_allow_html=True)
-            reset_target = st.selectbox("대상 선택", teacher_list, key="reset_pw", label_visibility="collapsed")
-            if st.button("실행", type="primary", use_container_width=True):
+            st.markdown("<div style='font-size:12px; font-weight:bold;'>👨‍🏫 비번 초기화</div>", unsafe_allow_html=True)
+            reset_target = st.selectbox("대상", teacher_list, key="reset_pw", label_visibility="collapsed")
+            if st.button("1234로 변경", type="primary", use_container_width=True):
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
                 st.success("완료!")
+
 
 # --- 시간표 렌더링 (뷰어 전용) ---
 is_current_week = (st.session_state.week_offset == 0)
@@ -357,7 +377,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
             if val == "__STRIKE__": is_strike, is_custom = True, True
             else: subject, is_custom = val, True
 
-        # 💡 조회 & 점심 블록 색상 어둡게 통일
         bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']
         fg = t['cell_fg']
         deco = "line-through" if is_strike else "none"
