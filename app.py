@@ -7,15 +7,20 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 영구 자동 로그인을 위한 URL 파라미터 감지
-if "user" in st.query_params and 'logged_in_user' not in st.session_state:
-    st.session_state.logged_in_user = st.query_params["user"]
-    st.session_state.teacher = st.query_params["user"]
-elif 'logged_in_user' not in st.session_state:
-    st.session_state.logged_in_user = None
+# 💡 URL 파라미터를 통한 상태 완벽 복구 (새로고침 방어)
+params = st.query_params
+if "user" in params and 'logged_in_user' not in st.session_state:
+    st.session_state.logged_in_user = params["user"]
+if "t" in params:
+    st.session_state.teacher = params["t"]
+if "w" in params:
+    st.session_state.week_offset = int(params["w"])
 
-# 상태 초기화
+if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = None
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
+if 'show_zero' not in st.session_state: st.session_state.show_zero = False
+if 'show_extra' not in st.session_state: st.session_state.show_extra = False
+if 'show_memo' not in st.session_state: st.session_state.show_memo = True
 if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
@@ -31,12 +36,7 @@ t = themes[st.session_state.theme_idx]
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation"
-}
+HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
 def verify_and_load_user(user_id):
     r = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{user_id}", headers=HEADERS)
@@ -44,26 +44,16 @@ def verify_and_load_user(user_id):
         u_data = r.json()[0]
         st.session_state.theme_idx = u_data.get('theme_idx', 0)
         st.session_state.font_name = u_data.get('font_name', '맑은 고딕')
+        st.session_state.show_zero = u_data.get('show_zero', False)
+        st.session_state.show_extra = u_data.get('show_extra', False)
+        st.session_state.show_memo = u_data.get('show_memo', True)
         return u_data
     return None
 
 if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
-# ---------------------------------------------------------
-# 💡 URL 라우팅으로 버튼 액션 처리 (새로고침 없는 빠른 이동)
-# ---------------------------------------------------------
-params = st.query_params
-if "nav" in params:
-    nav = params["nav"]
-    if nav == "prev": st.session_state.week_offset -= 1
-    elif nav == "next": st.session_state.week_offset += 1
-    elif nav == "today": st.session_state.week_offset = 0
-    st.query_params.clear()
-    st.query_params["user"] = st.session_state.logged_in_user 
-    st.rerun()
-
-# ⚙️ 설정 모달창
+# --- ⚙️ 설정 모달창 ---
 @st.dialog("⚙️ 설정 및 관리")
 def settings_modal():
     teacher_list = list(teachers_data.keys()) if 'teachers_data' in locals() else [st.session_state.logged_in_user]
@@ -97,6 +87,8 @@ def settings_modal():
 if "action" in params and params["action"] == "settings":
     st.query_params.clear()
     st.query_params["user"] = st.session_state.logged_in_user
+    st.query_params["t"] = st.session_state.teacher
+    st.query_params["w"] = st.session_state.week_offset
     settings_modal()
 
 # --- 로그인 화면 ---
@@ -179,30 +171,25 @@ target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 
 
-# 글로벌 CSS 설정
-st.markdown(f"""
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
-    <style>
-        html, body, .stApp {{ touch-action: auto !important; }}
-        * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
-        .element-container, .stMarkdown, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
-        .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
-        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
-        .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
-        header {{ visibility: hidden; }}
-        
-        /* 상단 헤더: 제목 + 이름선택창 */
-        @media screen and (max-width: 9999px) {{
-            div[data-testid="stHorizontalBlock"]:first-of-type {{
-                display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-            }}
-            div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ flex: 1.5 1 auto !important; min-width: 0 !important; width: auto !important; }}
-            div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 100px !important; min-width: 100px !important; width: 100px !important; }}
-        }}
-        div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
-        div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
-    </style>
-""", unsafe_allow_html=True)
+# 💡 마크다운 블록 버그를 완벽히 막기 위해 줄바꿈 들여쓰기를 제거한 글로벌 CSS
+global_css = f"""<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=10.0, user-scalable=yes">
+<style>
+html, body, .stApp {{ touch-action: auto !important; }}
+* {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
+.element-container, .stMarkdown, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
+.stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
+.stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3 {{ color: {t['text']} !important; }}
+.block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
+header {{ visibility: hidden; }}
+@media screen and (max-width: 9999px) {{
+div[data-testid="stHorizontalBlock"]:first-of-type {{ display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; }}
+div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(1) {{ flex: 1.5 1 auto !important; min-width: 0 !important; width: auto !important; }}
+div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"]:nth-child(2) {{ flex: 0 0 100px !important; min-width: 100px !important; width: 100px !important; }}
+}}
+div[data-baseweb="select"] {{ font-size: 13px !important; font-weight: bold; height: 32px !important; width: 100% !important; min-width: 0 !important; }}
+div[data-baseweb="select"] > div {{ min-height: 32px !important; padding: 0 2px 0 6px !important; border: 1px solid {t['grid']} !important; border-radius: 4px; }}
+</style>"""
+st.markdown(global_css, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------
@@ -219,96 +206,28 @@ with col_h2:
         st.rerun()
 
 # ---------------------------------------------------------
-# 2. 🔥 [혁명적 변화] 순수 HTML/CSS 툴바 & 자동 접기/펼치기
+# 2. 🔥 순수 HTML 툴바 & 0초 반응 시간표
+# (마크다운 오작동을 막기 위해 모든 들여쓰기를 제거한 안전한 조립 방식)
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
-is_today = (st.session_state.week_offset == 0)
+cur_w = st.session_state.week_offset
+cur_t = st.session_state.teacher
+
+link_prev = f"/?user={u}&w={cur_w - 1}&t={cur_t}"
+link_next = f"/?user={u}&w={cur_w + 1}&t={cur_t}"
+link_today = f"/?user={u}&w=0&t={cur_t}"
+link_set = f"/?user={u}&w={cur_w}&t={cur_t}&action=settings"
+
+is_today = (cur_w == 0)
 bg_today = t['hl_per'] if is_today else "transparent"
 fg_today = "#ffffff" if is_today else t['text']
 
-# 이 거대한 HTML 덩어리가 전체 UI와 접기/펼치기를 한 번에 통제합니다.
-full_html = f"""
-<style>
-    /* 🔥 툴바 디자인 (절대 1줄 고정) */
-    .pure-html-toolbar {{
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap; /* 절대 줄바꿈 금지 */
-        align-items: center;
-        background-color: {t['top']};
-        padding: 4px 2px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        width: 100%;
-        max-width: 460px; /* PC에서도 너무 길어지지 않게 통제 */
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        gap: 2px;
-    }}
-    .tb-btn {{
-        flex: 1 1 0;
-        text-align: center;
-        text-decoration: none !important;
-        color: {t['text']};
-        font-size: 13px;
-        font-weight: bold;
-        padding: 8px 0;
-        border-radius: 4px;
-        background-color: transparent;
-        line-height: 1;
-        cursor: pointer;
-        user-select: none;
-    }}
-    .tb-btn-wide {{ flex: 1.5 1 0; }}
-    .tb-btn:active {{ opacity: 0.6; }}
+# 체크박스 초기 상태 (DB값 반영)
+chk_memo_attr = "checked='checked'" if st.session_state.show_memo else ""
+chk_zero_attr = "checked='checked'" if st.session_state.show_zero else ""
+chk_extra_attr = "checked='checked'" if st.session_state.show_extra else ""
 
-    /* 🔥 [핵심] CSS 체크박스 해킹을 이용한 0초 딜레이 접기/펼치기 */
-    /* 1. 처음엔 모두 가려놓음 (display: none) */
-    .row-zero, .row-extra, #memo-section {{ display: none; }}
-
-    /* 2. 아이콘(라벨) 클릭 -> 숨겨진 체크박스 ON -> 해당 구역 표시 */
-    #chk-zero:checked ~ .app-container .row-zero {{ display: table-row !important; }}
-    #chk-extra:checked ~ .app-container .row-extra {{ display: table-row !important; }}
-    #chk-memo:checked ~ .app-container #memo-section {{ display: block !important; }}
-
-    /* 3. 체크박스 ON -> 해당 아이콘 버튼 색상 하이라이트 */
-    #chk-zero:checked ~ .app-container label[for="chk-zero"],
-    #chk-extra:checked ~ .app-container label[for="chk-extra"],
-    #chk-memo:checked ~ .app-container label[for="chk-memo"] {{
-        background-color: {t['hl_per']} !important;
-        color: #ffffff !important;
-    }}
-
-    /* 표 디자인 */
-    .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }}
-    .mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 45px; }}
-    .mobile-table td {{ border: 1px solid {t['grid']}; padding: 0px; text-align: center; vertical-align: middle; height: 65px; word-break: keep-all; font-weight: bold; font-size: 14px; }}
-    .hl-border-red {{ box-shadow: inset 0 0 0 3px {t['hl_per']} !important; z-index: 10; }}
-    .hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}
-    .hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}
-</style>
-
-<input type="checkbox" id="chk-memo" style="display:none;" />
-<input type="checkbox" id="chk-zero" style="display:none;" />
-<input type="checkbox" id="chk-extra" style="display:none;" />
-
-<div class="app-container">
-    <div class="pure-html-toolbar">
-        <a class="tb-btn" href="/?user={u}&nav=prev" target="_self">◀</a>
-        <a class="tb-btn tb-btn-wide" style="background-color:{bg_today}; color:{fg_today};" href="/?user={u}&nav=today" target="_self">이번주</a>
-        <a class="tb-btn" href="/?user={u}&nav=next" target="_self">▶</a>
-        
-        <label class="tb-btn" for="chk-memo">📝</label>
-        <label class="tb-btn" for="chk-zero">☀️</label>
-        <label class="tb-btn" for="chk-extra">🌙</label>
-        
-        <a class="tb-btn" href="/?user={u}&action=settings" target="_self">⚙️</a>
-    </div>
-
-    <div style="width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;">
-    <table class="mobile-table">
-"""
-
-# 🚨 [수정사항 반영] 변수 계산을 루프 위로 끌어올림
+# 현재 활성화된 교시 추적
 is_current_week = (st.session_state.week_offset == 0)
 today_idx = now_kst.weekday() 
 now_mins = now_kst.hour * 60 + now_kst.minute 
@@ -328,41 +247,81 @@ for row_idx, (period, time_range) in enumerate(period_times):
         preview_row = row_idx
         break
 
-# 헤더 요일 생성
-full_html += f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>"
-full_html += f"<th style='width: 13%; font-size:14px;'>교시</th>"
+html_parts = []
+
+# 1. 툴바 및 CSS 스타일 (들여쓰기 완전 제거)
+html_parts.append("<style>")
+html_parts.append(f".pure-html-toolbar {{ display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; background-color: {t['top']}; padding: 4px 2px; border-radius: 6px; margin-bottom: 10px; width: 100%; max-width: 460px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); gap: 2px; }}")
+html_parts.append(f".tb-btn {{ flex: 1 1 0; text-align: center; text-decoration: none !important; color: {t['text']}; font-size: 13px; font-weight: bold; padding: 8px 0; border-radius: 4px; background-color: transparent; line-height: 1; cursor: pointer; user-select: none; display: block; }}")
+html_parts.append(".tb-btn-wide { flex: 1.5 1 0; }")
+html_parts.append(".tb-btn:active { opacity: 0.6; }")
+html_parts.append(".row-zero, .row-extra, #memo-section { display: none; }")
+html_parts.append("#chk-zero:checked ~ .app-container .row-zero { display: table-row !important; }")
+html_parts.append("#chk-extra:checked ~ .app-container .row-extra { display: table-row !important; }")
+html_parts.append("#chk-memo:checked ~ .app-container #memo-section { display: block !important; }")
+html_parts.append(f"#chk-zero:checked ~ .app-container label[for='chk-zero'], #chk-extra:checked ~ .app-container label[for='chk-extra'], #chk-memo:checked ~ .app-container label[for='chk-memo'] {{ background-color: {t['hl_per']} !important; color: #ffffff !important; }}")
+html_parts.append(".mobile-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }")
+html_parts.append(f".mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 45px; }}")
+html_parts.append(f".mobile-table td {{ border: 1px solid {t['grid']}; padding: 0px; text-align: center; vertical-align: middle; height: 65px; word-break: keep-all; font-weight: bold; font-size: 14px; }}")
+html_parts.append(f".hl-border-red {{ box-shadow: inset 0 0 0 3px {t['hl_per']} !important; z-index: 10; }}")
+html_parts.append(f".hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}")
+html_parts.append(f".hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}")
+html_parts.append("</style>")
+
+# 2. 숨겨진 체크박스 상태
+html_parts.append(f"<input type='checkbox' id='chk-memo' style='display:none;' {chk_memo_attr} />")
+html_parts.append(f"<input type='checkbox' id='chk-zero' style='display:none;' {chk_zero_attr} />")
+html_parts.append(f"<input type='checkbox' id='chk-extra' style='display:none;' {chk_extra_attr} />")
+
+html_parts.append("<div class='app-container'>")
+
+# 3. HTML 일체형 툴바
+html_parts.append("<div class='pure-html-toolbar'>")
+html_parts.append(f"<a class='tb-btn' href='{link_prev}' target='_self'>◀</a>")
+html_parts.append(f"<a class='tb-btn tb-btn-wide' style='background-color:{bg_today}; color:{fg_today};' href='{link_today}' target='_self'>이번주</a>")
+html_parts.append(f"<a class='tb-btn' href='{link_next}' target='_self'>▶</a>")
+html_parts.append("<label class='tb-btn' for='chk-memo'>📝</label>")
+html_parts.append("<label class='tb-btn' for='chk-zero'>☀️</label>")
+html_parts.append("<label class='tb-btn' for='chk-extra'>🌙</label>")
+html_parts.append(f"<a class='tb-btn' href='{link_set}' target='_self'>⚙️</a>")
+html_parts.append("</div>")
+
+# 4. 시간표 테이블 렌더링
+html_parts.append(f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'>")
+html_parts.append("<table class='mobile-table'>")
+html_parts.append(f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'>")
+html_parts.append("<th style='width: 13%; font-size:14px;'>교시</th>")
+
+# 요일 헤더
 for col, day in enumerate(days):
     date_str = (monday + timedelta(days=col)).strftime("%m/%d")
-    th_class = "class='hl-border-red'" if (is_current_week and col == today_idx) else ""
+    th_class = "hl-border-red" if (is_current_week and col == today_idx) else ""
     th_bg = t['hl_per'] if (is_current_week and col == today_idx) else t['head_bg']
     th_fg = 'white' if (is_current_week and col == today_idx and t['name'] != '웜 파스텔') else t['head_fg']
-    full_html += f"<th {th_class} style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>"
-full_html += "</tr>"
+    html_parts.append(f"<th class='{th_class}' style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>")
+html_parts.append("</tr>")
 
-
-# 시간표 본문 생성
+# 시간표 본문
 for row_idx, (period, time_str) in enumerate(period_times):
-    # 💡 접기/펼치기를 위해 클래스 부여 (row-zero, row-extra)
     row_class = ""
     if period == "조회": row_class = "row-zero"
     elif period in ["8교시", "9교시"]: row_class = "row-extra"
     
     td_period_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""
-    full_html += f"<tr class='{row_class}'>"
+    html_parts.append(f"<tr class='{row_class}'>")
     
     p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']
     p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
     
     start_t, end_t = time_str.split('\n')
-    full_html += f"<td class='{td_period_class}' style='background-color:{p_bg}; color:{p_fg};'>"
-    full_html += f"<div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div>"
-    full_html += f"<div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div>"
-    full_html += "</td>"
+    html_parts.append(f"<td class='{td_period_class}' style='background-color:{p_bg}; color:{p_fg};'>")
+    html_parts.append(f"<div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div>")
+    html_parts.append(f"<div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div>")
+    html_parts.append("</td>")
     
     for col, day in enumerate(days):
         row_num = row_idx + 1
         date_key = f"{(monday + timedelta(days=col)).strftime('%Y-%m-%d')}_{row_num}"
-        
         subject = ""
         if period != "점심":
             s_idx = row_num - 2 if row_num < 6 else row_num - 3
@@ -370,7 +329,6 @@ for row_idx, (period, time_str) in enumerate(period_times):
                 subject = base_schedule[day][s_idx]
 
         is_strike, is_custom = False, False
-
         if date_key in custom_data:
             val = custom_data[date_key]
             if val == "__STRIKE__": is_strike, is_custom = True, True
@@ -386,52 +344,41 @@ for row_idx, (period, time_str) in enumerate(period_times):
         elif is_custom: fg = "#e74c3c"
             
         display = subject.replace('\n', '<br>') if subject else ""
-        
         td_cell_class = ""
         if is_current_week and col == today_idx:
             if row_idx == active_row: td_cell_class = "hl-fill-yellow"
             elif row_idx == preview_row: td_cell_class = "hl-border-yellow"
 
-        full_html += f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'>"
-        full_html += f"<div style='text-decoration:{deco}; font-size:14px; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div>"
-        full_html += "</td>"
+        html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'>")
+        html_parts.append(f"<div style='text-decoration:{deco}; font-size:14px; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div>")
+        html_parts.append("</td>")
         
-    full_html += "</tr>"
-full_html += """
-    </table>
-    </div>
-"""
+    html_parts.append("</tr>")
 
-# 💡 메모장 렌더링 (id="memo-section" 부여하여 CSS로 통제)
-full_html += f"""
-    <div id="memo-section" style="margin-top:10px;">
-        <h3 style="margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};">📝 {st.session_state.logged_in_user} 메모장 <span style="font-size:11px; font-weight:normal; opacity:0.6;">(수정은 PC에서)</span></h3>
-        <div style="height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;">
-"""
+html_parts.append("</table></div>")
+
+# 5. 메모장 렌더링
+html_parts.append("<div id='memo-section' style='margin-top:10px;'>")
+html_parts.append(f"<h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.logged_in_user} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3>")
+html_parts.append(f"<div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
+
 if memos_list:
     for i, m in enumerate(memos_list):
         num = len(memos_list) - i
         text = m['memo_text']
         is_strike = m.get('is_strike', False)
         is_imp = m.get('is_important', False)
-        
         prefix = "⭐ " if is_imp else ""
         deco = "line-through" if is_strike else "none"
         color = "gray" if is_strike else t['text']
         
-        full_html += f"""
-        <div style="color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']};">
-            <b>{num}.</b> {prefix}{text}
-        </div>
-        """
+        html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']};'>")
+        html_parts.append(f"<b>{num}.</b> {prefix}{text}")
+        html_parts.append("</div>")
 else:
-    full_html += f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>"
+    html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
 
-full_html += """
-        </div>
-    </div>
-</div>
-"""
+html_parts.append("</div></div></div>")
 
-# 완성된 거대 HTML 블록을 한 번에 화면에 쏩니다.
-st.markdown(full_html, unsafe_allow_html=True)
+# 완성된 HTML을 마크다운 에러 없이 출력
+st.markdown("".join(html_parts), unsafe_allow_html=True)
