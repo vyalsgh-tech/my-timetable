@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 영구 로그인을 위한 URL 파라미터 인식
+# 💡 영구 자동 로그인을 위한 URL 파라미터 감지 및 복구
 if "user" in st.query_params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = st.query_params["user"]
     st.session_state.teacher = st.query_params["user"]
@@ -33,7 +33,7 @@ themes = [
 ]
 t = themes[st.session_state.theme_idx]
 
-# 💡 [핵심] 어떠한 일이 있어도 열(Column)이 깨지지 않는 절대 방어 CSS
+# 💡 모바일 화면 밖으로 버튼이 밀려나는 현상 100% 방어 CSS
 st.markdown(f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <style>
@@ -48,28 +48,31 @@ st.markdown(f"""
         .stTabs [data-baseweb="tab-list"] button {{ color: {t['text']} !important; opacity: 0.7; font-size: 16px; }}
         .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {{ opacity: 1; border-bottom: 3px solid {t['hl_per']} !important; font-weight: bold; }}
         
-        /* 🚨 가로 배열을 무조건 한 줄로 강제 압축시키는 코드 */
+        /* 🚨 [핵심] 가로 블록(Horizontal Block)이 무조건 1줄에 꽉 차도록 강제 압축 */
         div[data-testid="stHorizontalBlock"] {{
+            display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             gap: 4px !important;
+            overflow: hidden !important;
         }}
-        div[data-testid="column"] {{
-            min-width: 0 !important; 
-            width: auto !important;
-            flex: 1 1 0% !important; /* 모든 버튼을 동일한 비율로 꽉 채움 */
-            padding: 0 1px !important;
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            width: 0 !important;         /* 스트림릿의 모바일 100% 강제 확대를 무력화 */
+            min-width: 0 !important;     /* 글자가 길어도 뚫고 나가지 못하게 제한 */
+            flex: 1 1 0% !important;     /* 모든 버튼이 동일한 비율로 1줄을 나눠가짐 */
+            padding: 0 !important;
         }}
-        /* 드롭다운(교사선택)이나 로고 영역은 살짝 더 넓게 배정 */
+        /* 첫 번째 컬럼(교사 선택, 메모, 조회 버튼 등)은 글씨가 길어서 비율을 1.6배로 더 줌 */
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {{
-            flex: 1.4 1 0% !important; 
+            flex: 1.6 1 0% !important; 
         }}
         
-        .stButton>button {{ height: 38px !important; border-radius: 6px !important; font-size: 13px !important; font-weight: bold !important; background-color: {t['top']} !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; padding: 0 2px !important; }}
+        .stButton>button {{ height: 38px !important; border-radius: 6px !important; font-size: 13.5px !important; font-weight: bold !important; background-color: {t['top']} !important; color: {t['text']} !important; border: 1px solid {t['grid']} !important; padding: 0 2px !important; }}
         .stButton>button[data-testid="baseButton-primary"] {{ background-color: {t['hl_per']} !important; color: #ffffff !important; border: 2px solid #ffffff !important; box-shadow: 0 0 5px rgba(0,0,0,0.3) !important; }}
         
         div[data-testid="stPopover"] > button {{ font-size: 16px !important; padding: 0 !important; }}
         div[data-testid="stPopover"] svg {{ fill: {t['text']} !important; }}
+        
         div[data-testid="stAlert"] {{ border-radius: 8px !important; }}
         div[data-testid="stAlert"] p {{ color: #111111 !important; font-weight: bold !important; }}
     </style>
@@ -247,7 +250,7 @@ with col_h2:
 
 st.markdown(f"<div style='background-color:{t['top']}; padding:8px; border-radius:10px; margin-bottom:10px;'>", unsafe_allow_html=True)
 
-# 💡 첫 번째 줄: 교사선택, 이전, 이번주, 다음 (잘림 방지)
+# 💡 첫 번째 줄: 교사선택, 이전, 이번주, 다음 (비율 고정으로 1줄 완벽 렌더링)
 r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
 with r1_c1:
     teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
@@ -309,17 +312,16 @@ with r2_c4:
             st.session_state.font_name = new_font
             st.rerun()
             
-        # 💡 관리자 전용 비밀번호 초기화 기능 (표민호 계정에서만 보임)
+        # 💡 [요청사항 반영] 표민호 선생님 계정 전용 '비밀번호 관리자' 메뉴
         if st.session_state.logged_in_user == "표민호":
             st.markdown("---")
-            st.markdown("<div style='font-size:13px; font-weight:bold;'>👨‍🏫 관리자 메뉴</div>", unsafe_allow_html=True)
-            reset_target = st.selectbox("비밀번호 초기화 대상", teacher_list, key="reset_pw")
-            if st.button(f"'{reset_target}' 비번 1234로 초기화", type="primary"):
+            st.markdown("<div style='font-size:14px; font-weight:bold; margin-bottom:5px;'>👨‍🏫 관리자 전용: 비밀번호 초기화</div>", unsafe_allow_html=True)
+            reset_target = st.selectbox("초기화할 선생님 선택", teacher_list, key="reset_pw")
+            if st.button(f"'{reset_target}' 비번 1234로 초기화", type="primary", use_container_width=True):
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{reset_target}", headers=HEADERS, json={"password": "1234"})
-                st.success("초기화 완료!")
+                st.success("초기화 완료! (비밀번호: 1234)")
 
 st.markdown("</div>", unsafe_allow_html=True)
-
 
 # --- 시간표 렌더링 ---
 is_current_week = (st.session_state.week_offset == 0)
@@ -402,8 +404,8 @@ for row_idx, (period, time_str) in enumerate(period_times):
             if val == "__STRIKE__": is_strike, is_custom = True, True
             else: subject, is_custom = val, True
 
-        # 💡 조회 시간 색상을 점심시간(약간 어두운 톤)과 동일하게 칠하기
-        bg = t['lunch_bg'] if period in ["점심", "조회"] else t['cell_bg']
+        # 💡 [요청사항 반영] '조회' 블록도 '점심'과 똑같은 살짝 어두운 톤 적용
+        bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']
         fg = t['cell_fg']
         deco = "line-through" if is_strike else "none"
 
@@ -433,7 +435,7 @@ html += "</table></div>"
 st.markdown(html, unsafe_allow_html=True)
 
 
-# --- 프라이빗 메모장 ---
+# --- 💡 프라이빗 메모장 ---
 if st.session_state.show_memo:
     st.markdown("---")
     c_m1, c_m2 = st.columns([7, 3])
