@@ -118,7 +118,7 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (기존 450px 툴바 고정 유지 + 메모장 세련된 스크롤바 추가)
+# 💡 글로벌 CSS 설정 (모바일 강제 붕괴 완전 차단 로직)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
@@ -136,38 +136,52 @@ st.markdown(f"""
         margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; color: {t['text']} !important;
     }}
     
-    /* 2. 아이콘 툴바 450px 정렬 및 화살표 폭 축소! */
-    div[data-testid="stHorizontalBlock"] {{
-        display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-        background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 6px !important; margin-bottom: 10px !important;
-        width: 100% !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
+    /* 🚨 2. 스트림릿 모바일 강제 붕괴 완전 차단 (@media 9999px 우선순위 덮어쓰기) */
+    @media screen and (max-width: 9999px) {{
+        /* 툴바 컨테이너를 가로 한 줄로 강제 고정 */
+        div[data-testid="stHorizontalBlock"] {{
+            display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
+            background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 8px !important; margin-bottom: 10px !important;
+            width: 100% !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
+        }}
+        
+        /* 모든 버튼 컬럼들이 세로로 쌓이지 않도록 너비 강제 수축 허용 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            flex: 1 1 0px !important; 
+            width: auto !important; min-width: 0px !important; max-width: none !important; 
+            padding: 0 !important; margin: 0 !important; display: block !important;
+        }}
+        
+        /* ◀, ▶ 화살표 32px 폭 고정 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
+            flex: 0 0 32px !important; width: 32px !important; min-width: 32px !important;
+        }}
+        
+        /* 이번주 버튼 65px 폭 고정 */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
+            flex: 0 0 65px !important; width: 65px !important; min-width: 65px !important;
+        }}
     }}
     
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-        flex: 1 1 0px !important; min-width: 0 !important; width: auto !important; padding: 0 !important; margin: 0 !important;
-    }}
-    
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
-        flex: 0 0 32px !important; width: 32px !important;
-    }}
-    
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
-        flex: 0 0 65px !important; width: 65px !important;
-    }}
-    
+    /* 버튼 디자인 통일 */
     div[data-testid="stHorizontalBlock"] .stButton > button {{
-        height: 32px !important; border-radius: 4px !important; font-size: 13px !important; font-weight: bold !important;
-        background-color: transparent !important; color: {t['text']} !important; border: none !important;
-        padding: 0 !important; line-height: 1 !important; width: 100% !important; min-width: 0 !important; display: block;
+        height: 34px !important; border-radius: 6px !important; font-size: 13px !important; font-weight: bold !important;
+        padding: 0 !important; line-height: 1 !important; width: 100% !important; min-width: 0 !important; display: block !important;
     }}
-    div[data-testid="stHorizontalBlock"] .stButton > button:active {{ opacity: 0.6 !important; background-color: transparent !important; color: {t['text']} !important; }}
-    div[data-testid="stHorizontalBlock"] .stButton > button[data-testid="baseButton-primary"] {{
+    /* 꺼진 버튼 (Secondary) */
+    div[data-testid="stHorizontalBlock"] .stButton > button[kind="secondary"] {{
+        background-color: transparent !important; color: {t['text']} !important; border: none !important;
+    }}
+    /* 켜진 버튼 (Primary) */
+    div[data-testid="stHorizontalBlock"] .stButton > button[kind="primary"] {{
         background-color: {t['hl_per']} !important; color: #ffffff !important; border: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
     }}
+    div[data-testid="stHorizontalBlock"] .stButton > button:active {{ opacity: 0.6 !important; }}
     
+    /* 설정 톱니바퀴 */
     div[data-testid="stHorizontalBlock"] div[data-testid="stPopover"] > button {{
-        font-size: 15px !important; height: 32px !important; padding: 0 !important; width: 100% !important;
+        font-size: 15px !important; height: 34px !important; padding: 0 !important; width: 100% !important;
         border: none !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important;
     }}
     div[data-testid="stPopover"] svg {{ display: none !important; }}
@@ -184,7 +198,7 @@ st.markdown(f"""
     .hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}
     .hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}
 
-    /* 🔥 메모장 세련된 스크롤바 커스텀 CSS 추가 */
+    /* 🔥 메모장 세련된 스크롤바 커스텀 CSS 유지 */
     .memo-container {{
         height: 300px;
         overflow-y: auto;
@@ -196,19 +210,13 @@ st.markdown(f"""
         scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
     }}
     /* Chrome, Edge, Safari 커스텀 스크롤바 */
-    .memo-container::-webkit-scrollbar {{
-        width: 6px;
-    }}
-    .memo-container::-webkit-scrollbar-track {{
-        background: transparent;
-    }}
+    .memo-container::-webkit-scrollbar {{ width: 6px; }}
+    .memo-container::-webkit-scrollbar-track {{ background: transparent; }}
     .memo-container::-webkit-scrollbar-thumb {{
         background-color: rgba(150, 150, 150, 0.5);
         border-radius: 10px;
     }}
-    .memo-container::-webkit-scrollbar-thumb:hover {{
-        background-color: rgba(150, 150, 150, 0.8);
-    }}
+    .memo-container::-webkit-scrollbar-thumb:hover {{ background-color: rgba(150, 150, 150, 0.8); }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -369,7 +377,7 @@ def display_dashboard():
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
-    # 💡 🔥 메모장 렌더링 (커스텀 스크롤바가 적용된 memo-container 클래스 사용)
+    # 💡 🔥 메모장 렌더링 (커스텀 스크롤바가 적용된 memo-container 유지)
     if st.session_state.show_memo:
         html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div class='memo-container'>")
         if memos_list:
