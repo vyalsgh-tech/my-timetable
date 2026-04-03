@@ -11,7 +11,7 @@ st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="�
 params = st.query_params
 if "user" in params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = params["user"]
-    st.session_state.teacher = params["user"] # 로그인 즉시 해당 유저로 고정
+    st.session_state.teacher = params["user"] 
 if "t" in params:
     st.session_state.teacher = params["t"]
 if "w" in params:
@@ -22,10 +22,19 @@ if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = N
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
 if 'show_extra' not in st.session_state: st.session_state.show_extra = False
-if 'show_memo' not in st.session_state: st.session_state.show_memo = False
+if 'show_memo' not in st.session_state: st.session_state.show_memo = False 
 if 'teacher' not in st.session_state: st.session_state.teacher = None
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
+
+# 🚨 [수정 1] NameError 방지: themes 변수를 함수 호출 전에 최상단에 미리 선언!
+themes = [
+    { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f', 'text': '#ffffff' },
+    { 'name': '웜 파스텔', 'bg': '#fdf6e3', 'top': '#e4d5b7', 'grid': '#eee8d5', 'head_bg': '#d6caba', 'head_fg': '#333333', 'per_bg': '#e8e2d2', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#f0e6d2', 'cell_fg': '#4a4a4a', 'hl_per': '#ffb6b9', 'hl_cell': '#fae3d9', 'text': '#333333' },
+    { 'name': '클래식 블루', 'bg': '#e0eaf5', 'top': '#4a90e2', 'grid': '#d0dceb', 'head_bg': '#5c9ce6', 'head_fg': 'white', 'per_bg': '#a8c2e0', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e0f0', 'cell_fg': '#2c3e50', 'hl_per': '#f39c12', 'hl_cell': '#fde3a7', 'text': '#2c3e50' },
+    { 'name': '포레스트', 'bg': '#e9ede7', 'top': '#2c5344', 'grid': '#d0d8d3', 'head_bg': '#3b6a57', 'head_fg': 'white', 'per_bg': '#8ba89a', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e8d7', 'cell_fg': '#1a3026', 'hl_per': '#d35400', 'hl_cell': '#f9e79f', 'text': '#1a3026' },
+    { 'name': '모노톤', 'bg': '#f5f5f5', 'top': '#333333', 'grid': '#e0e0e0', 'head_bg': '#555555', 'head_fg': 'white', 'per_bg': '#999999', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d4d4d4', 'cell_fg': '#000000', 'hl_per': '#d90429', 'hl_cell': '#edf2f4', 'text': '#222222' }
+]
 
 # DB 연결 정보
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -45,7 +54,10 @@ def verify_and_load_user(user_id):
 if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
-# --- ⚙️ 설정 모달창 ---
+# 현재 테마 설정 (유저 데이터 로드 이후에 선언)
+t = themes[st.session_state.theme_idx]
+
+# --- ⚙️ 설정 모달창 (개인별 격리) ---
 @st.dialog("⚙️ 설정 및 관리")
 def settings_modal():
     new_theme = st.selectbox("🎨 테마 변경", [th['name'] for th in themes], index=st.session_state.theme_idx)
@@ -73,7 +85,7 @@ if "action" in params and params["action"] == "settings":
     u_id = st.session_state.logged_in_user
     st.query_params.clear(); st.query_params["user"] = u_id; settings_modal()
 
-# --- 데이터 로드 ---
+# --- 데이터 로드 (개인별 필터링 강화) ---
 @st.cache_data
 def load_csv_for_user(target_teacher):
     days = ["월", "화", "수", "목", "금"]
@@ -85,8 +97,7 @@ def load_csv_for_user(target_teacher):
                 for row in reader:
                     if not row or len(row) < 36: continue
                     if str(row[0]).strip() == str(target_teacher).strip():
-                        periods_per_day = (len(row) - 1) // 5
-                        t_data[row[0]] = {d: row[1 + i*periods_per_day : 1 + (i+1)*periods_per_day][:9] for i, d in enumerate(days)}
+                        t_data[row[0]] = {d: row[1 + i*7 : 1 + (i+1)*7][:9] for i, d in enumerate(days)}
                         break
         except: pass
     return t_data
@@ -117,16 +128,6 @@ try:
     if r_memo.status_code == 200: memos_list = r_memo.json()
 except: pass
 
-# 테마 데이터 재정의
-themes = [
-    { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f', 'text': '#ffffff' },
-    { 'name': '웜 파스텔', 'bg': '#fdf6e3', 'top': '#e4d5b7', 'grid': '#eee8d5', 'head_bg': '#d6caba', 'head_fg': '#333333', 'per_bg': '#e8e2d2', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#f0e6d2', 'cell_fg': '#4a4a4a', 'hl_per': '#ffb6b9', 'hl_cell': '#fae3d9', 'text': '#333333' },
-    { 'name': '클래식 블루', 'bg': '#e0eaf5', 'top': '#4a90e2', 'grid': '#d0dceb', 'head_bg': '#5c9ce6', 'head_fg': 'white', 'per_bg': '#a8c2e0', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e0f0', 'cell_fg': '#2c3e50', 'hl_per': '#f39c12', 'hl_cell': '#fde3a7', 'text': '#2c3e50' },
-    { 'name': '포레스트', 'bg': '#e9ede7', 'top': '#2c5344', 'grid': '#d0d8d3', 'head_bg': '#3b6a57', 'head_fg': 'white', 'per_bg': '#8ba89a', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e8d7', 'cell_fg': '#1a3026', 'hl_per': '#d35400', 'hl_cell': '#f9e79f', 'text': '#1a3026' },
-    { 'name': '모노톤', 'bg': '#f5f5f5', 'top': '#333333', 'grid': '#e0e0e0', 'head_bg': '#555555', 'head_fg': 'white', 'per_bg': '#999999', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d4d4d4', 'cell_fg': '#000000', 'hl_per': '#d90429', 'hl_cell': '#edf2f4', 'text': '#222222' }
-]
-t = themes[st.session_state.theme_idx]
-
 # --- 시간표 날짜 계산 ---
 days = ["월", "화", "수", "목", "금"]
 period_times = [("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"), ("3교시", "10:00\n10:50"), ("4교시", "11:00\n11:50"), ("점심", "11:50\n12:40"), ("5교시", "12:40\n13:30"), ("6교시", "13:40\n14:30"), ("7교시", "14:40\n15:30"), ("8교시", "16:00\n16:50"), ("9교시", "17:00\n17:50")]
@@ -147,7 +148,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# 1. 상단 헤더
+# 1. 상단 헤더 (성함 표기)
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 ({st.session_state.logged_in_user} 선생님)</div></div>", unsafe_allow_html=True)
 
 # 2. 🔥 순수 HTML 툴바 & 반응형 시간표
@@ -212,11 +213,14 @@ for row_idx, (period, time_range) in enumerate(period_times):
 for row_idx, (period, time_str) in enumerate(period_times):
     row_class = "row-zero" if period == "조회" else ("row-extra" if period in ["8교시", "9교시"] else "")
     td_p_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""; p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']; p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
-    html_parts.append(f"<tr class='{row_class}'><td class='{td_p_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div><div style='line-height:1.0; font-size:11px;'>{time_str.replace('\\n','~')}</div></td>")
+    
+    # 🚨 [수정 2] 교시(조회 포함) 레이아웃 포맷 통일 복구
+    start_t, end_t = time_str.split('\n')
+    html_parts.append(f"<td class='{td_p_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div><div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div></td>")
+    
     for col, day in enumerate(days):
         row_num = row_idx + 1; date_key = f"{(monday + timedelta(days=col)).strftime('%Y-%m-%d')}_{row_num}"
         s_idx = row_num-2 if row_num<6 else row_num-3
-        # 🚨 [오류 수정] 조회/점심 시간 예외처리 보강으로 -1 버그 방지
         subj = base_schedule[day][s_idx] if period not in ["조회", "점심"] and 0 <= s_idx < len(base_schedule.get(day, [])) else ""
         if date_key in custom_data: subj = custom_data[date_key]
         bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']; fg = t['cell_fg']; deco = "line-through" if subj == "__STRIKE__" else "none"
