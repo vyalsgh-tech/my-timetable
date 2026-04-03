@@ -41,8 +41,7 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
 def update_db_bg(url, headers, user, key, val):
-    try:
-        requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
+    try: requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
     except: pass
 
 def verify_and_load_user(user_id):
@@ -118,69 +117,66 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (호환성 100% 무적 툴바 정렬 & 폭발 방지)
+# 💡 글로벌 CSS 설정 (어떠한 모바일에서도 절대 튕겨나가지 않는 무적의 툴바 로직)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
     * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
     .element-container, .stMarkdown, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
-    
-    .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
-    
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 1. 상단 헤더 450px 완벽 고정 */
+    /* 상단 헤더 450px 고정 */
     .header-container {{
         width: 100% !important; max-width: 450px !important; 
         margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; color: {t['text']} !important;
     }}
     
-    /* 🚨 2. 아이콘 툴바 450px 정렬 및 화살표 폭 축소! */
+    /* 🚨 1. 아이콘 툴바 전체 박스 완벽 고정 (모바일 붕괴 원천 차단) */
     div[data-testid="stHorizontalBlock"] {{
         display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-        background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 6px !important; margin-bottom: 10px !important;
+        background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 8px !important; margin-bottom: 10px !important;
         width: 100% !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
     }}
     
-    /* 기본 아이콘들은 남는 공간을 예쁘게 나누어 가짐 */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-        flex: 1 1 0px !important; min-width: 0 !important; width: auto !important; padding: 0 !important; margin: 0 !important;
+    /* 🚨 2. 내부 버튼들의 모바일 100% 확장 악성 로직 분쇄 */
+    div[data-testid="stHorizontalBlock"] > div {{
+        flex: 1 1 0px !important; 
+        width: auto !important; min-width: 0px !important; max-width: none !important; 
+        padding: 0 !important; margin: 0 !important; display: block !important;
     }}
     
-    /* 🔥 직전주, 다음주 화살표 폭을 아주 좁게(32px) 압축하여 바짝 붙임 */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
-        flex: 0 0 32px !important; width: 32px !important;
+    /* 🚨 3. 화살표 아주 좁게 (32px), 이번주 버튼 (65px) 바짝 붙이기 정밀 타격 */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1),
+    div[data-testid="stHorizontalBlock"] > div:nth-child(3) {{
+        flex: 0 0 32px !important; width: 32px !important; min-width: 32px !important;
+    }}
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) {{
+        flex: 0 0 65px !important; width: 65px !important; min-width: 65px !important;
     }}
     
-    /* 🔥 이번주 버튼은 65px로 고정하여 3개의 버튼이 하나의 덩어리처럼 보이게 함 */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
-        flex: 0 0 65px !important; width: 65px !important;
-    }}
-    
-    /* 툴바 내 버튼 통일 (아이콘 뒤죽박죽 현상 완벽 해결) */
+    /* 🚨 4. 버튼 디자인 및 활성화(ON) 색상 완벽 연동 */
     div[data-testid="stHorizontalBlock"] .stButton > button {{
-        height: 32px !important; border-radius: 4px !important; font-size: 13px !important; font-weight: bold !important;
-        background-color: transparent !important; color: {t['text']} !important; border: none !important;
-        padding: 0 !important; line-height: 1 !important; width: 100% !important; min-width: 0 !important; display: block;
+        height: 34px !important; border-radius: 6px !important; font-size: 13px !important; font-weight: bold !important;
+        padding: 0 !important; line-height: 1 !important; width: 100% !important; min-width: 0 !important; display: block !important;
     }}
-    div[data-testid="stHorizontalBlock"] .stButton > button:active {{ opacity: 0.6 !important; background-color: transparent !important; color: {t['text']} !important; }}
-    div[data-testid="stHorizontalBlock"] .stButton > button[data-testid="baseButton-primary"] {{
+    /* 꺼진 버튼 (Secondary) */
+    div[data-testid="stHorizontalBlock"] .stButton > button[kind="secondary"] {{
+        background-color: transparent !important; color: {t['text']} !important; border: none !important;
+    }}
+    /* 켜진 버튼 (Primary) - 빨갛게 활성화됨! */
+    div[data-testid="stHorizontalBlock"] .stButton > button[kind="primary"] {{
         background-color: {t['hl_per']} !important; color: #ffffff !important; border: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
     }}
+    div[data-testid="stHorizontalBlock"] .stButton > button:active {{ opacity: 0.6 !important; }}
     
+    /* 설정 톱니바퀴 */
     div[data-testid="stHorizontalBlock"] div[data-testid="stPopover"] > button {{
-        font-size: 15px !important; height: 32px !important; padding: 0 !important; width: 100% !important;
+        font-size: 15px !important; height: 34px !important; padding: 0 !important; width: 100% !important;
         border: none !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important;
     }}
     div[data-testid="stPopover"] svg {{ display: none !important; }}
     
-    /* 마크다운 공백 제거 */
-    div[data-testid="stHorizontalBlock"] .stMarkdown, div[data-testid="stHorizontalBlock"] .stMarkdown p {{
-        margin: 0 !important; padding: 0 !important; width: 100% !important; line-height: 1 !important;
-    }}
-
     /* 시간표 테이블 CSS */
     .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }}
     .mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 45px; }}
@@ -192,14 +188,14 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 복원
+# 1. 상단 헤더
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 <span style='font-size:13px; font-weight:normal;'>({u} 선생님)</span></div></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 2. 🔥 부분 렌더링 구역 (툴바 + 시간표 + 메모장)
-# 버튼 통일 및 파이썬 로직 제어로 브라우저 호환성 100% 확보!
+# 버튼 작동 100% 보장 및 0.1초 반응속도
 # ---------------------------------------------------------
 @st.fragment
 def display_dashboard():
@@ -213,40 +209,39 @@ def display_dashboard():
         if r_memo.status_code == 200: memos_list = r_memo.json()
     except: pass
 
-    # 💡 툴바 (오류를 막기 위해 모든 버튼을 순정 st.button으로 완벽히 통일)
-    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8) 
+    # 💡 툴바 (오류 없는 순수 파이썬 버튼, CSS가 강제 1줄 정렬 및 색상 제어)
+    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
     with c1:
-        if st.button("◀", use_container_width=True): 
+        if st.button("◀", use_container_width=True, key="prev"): 
             st.session_state.week_offset -= 1
             safe_fragment_rerun()
     with c2:
         btn_type = "primary" if st.session_state.week_offset == 0 else "secondary"
-        if st.button("이번주", use_container_width=True, type=btn_type): 
+        if st.button("이번주", use_container_width=True, type=btn_type, key="today"): 
             st.session_state.week_offset = 0
             safe_fragment_rerun()
     with c3:
-        if st.button("▶", use_container_width=True): 
+        if st.button("▶", use_container_width=True, key="next"): 
             st.session_state.week_offset += 1
             safe_fragment_rerun()
     with c4:
-        if st.button("🔄", use_container_width=True): 
+        if st.button("🔄", use_container_width=True, key="refresh"): 
             safe_fragment_rerun() 
     with c5:
-        # 💡 호환성 100% 파이썬 토글 로직 부활! (누르면 부분 렌더링으로 0.1초 즉각 반응)
         btn_type = "primary" if st.session_state.show_memo else "secondary"
-        if st.button("📝", use_container_width=True, type=btn_type): 
+        if st.button("📝", use_container_width=True, type=btn_type, key="memo_toggle"): 
             st.session_state.show_memo = not st.session_state.show_memo
             threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_memo", st.session_state.show_memo)).start()
             safe_fragment_rerun()
     with c6:
         btn_type = "primary" if st.session_state.show_zero else "secondary"
-        if st.button("☀️", use_container_width=True, type=btn_type): 
+        if st.button("☀️", use_container_width=True, type=btn_type, key="zero_toggle"): 
             st.session_state.show_zero = not st.session_state.show_zero
             threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_zero", st.session_state.show_zero)).start()
             safe_fragment_rerun()
     with c7:
         btn_type = "primary" if st.session_state.show_extra else "secondary"
-        if st.button("🌙", use_container_width=True, type=btn_type): 
+        if st.button("🌙", use_container_width=True, type=btn_type, key="extra_toggle"): 
             st.session_state.show_extra = not st.session_state.show_extra
             threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_extra", st.session_state.show_extra)).start()
             safe_fragment_rerun()
@@ -315,7 +310,7 @@ def display_dashboard():
     base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
     for row_idx, (period, time_str) in enumerate(period_times):
         
-        # 💡 파이썬 단에서 즉각적으로 행 렌더링 통제 (호환성 에러 원천 차단)
+        # 버튼 상태에 따른 파이썬단 즉각 렌더링 배제
         if period == "조회" and not st.session_state.show_zero: continue
         if period in ["8교시", "9교시"] and not st.session_state.show_extra: continue
 
@@ -352,9 +347,9 @@ def display_dashboard():
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
-    # 💡 메모장 렌더링 로직 복원 (파이썬 통제)
+    # 메모장 렌더링
     if st.session_state.show_memo:
-        html_parts.append(f"<div id='memo-section' style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
+        html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
         if memos_list:
             for i, m in enumerate(memos_list):
                 num = len(memos_list) - i
