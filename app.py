@@ -65,13 +65,17 @@ def settings_modal():
         requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"theme_idx": new_idx})
         st.session_state.theme_idx = new_idx
         st.rerun()
+    new_font = st.selectbox("A 폰트 변경", ["맑은 고딕", "바탕", "돋움", "굴림", "Arial"], index=["맑은 고딕", "바탕", "돋움", "굴림", "Arial"].index(st.session_state.font_name))
+    if new_font != st.session_state.font_name:
+        requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font})
+        st.session_state.font_name = new_font
+        st.rerun()
     st.markdown("---")
     if st.button("🔓 로그아웃", type="primary", use_container_width=True):
         st.session_state.logged_in_user = None
         st.query_params.clear() 
         st.rerun()
     if st.session_state.logged_in_user == "표민호":
-        # 🚨 [수정 2] HTML 태그 노출 방지를 위한 unsafe_allow_html=True 추가
         st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 [관리자] 비번 초기화</div>", unsafe_allow_html=True)
         r_all = requests.get(f"{SUPABASE_URL}/rest/v1/users?select=teacher_name", headers=HEADERS)
         if r_all.status_code == 200:
@@ -136,7 +140,7 @@ target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
 monday = target_date - timedelta(days=target_date.weekday())
 is_current_week = (st.session_state.week_offset == 0); today_idx = now_kst.weekday(); now_mins = now_kst.hour * 60 + now_kst.minute
 
-# 💡 글로벌 CSS
+# 💡 글로벌 CSS 설정 (헤더 및 툴바 443px 고정)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; }}
@@ -144,7 +148,16 @@ st.markdown(f"""
     .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; color: {t['text']} !important; }}
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
-    .header-container {{ max-width: 460px !important; width: 100% !important; margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; }}
+    
+    /* 🚨 [수정 2] 폭을 443px로 고정 */
+    .header-container {{ 
+        max-width: 443px !important; 
+        width: 100% !important; 
+        margin: 0 auto 5px 0 !important; 
+        display: flex !important; 
+        align-items: center; 
+        padding-left: 2px; 
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -163,7 +176,8 @@ fg_today = "#ffffff" if (cur_w == 0) else t['text']
 
 html_parts = []
 html_parts.append("<style>")
-html_parts.append(f".pure-html-toolbar {{ display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; background-color: {t['top']}; padding: 4px 2px; border-radius: 6px; margin-bottom: 10px; width: 100%; max-width: 460px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); gap: 2px; }}")
+# 🚨 [수정 2] 툴바 폭 443px 고정
+html_parts.append(f".pure-html-toolbar {{ display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; background-color: {t['top']}; padding: 4px 2px; border-radius: 6px; margin-bottom: 10px; width: 100%; max-width: 443px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); gap: 2px; }}")
 html_parts.append(f".tb-btn {{ flex: 1 1 0; text-align: center; text-decoration: none !important; color: {t['text']}; font-size: 13px; font-weight: bold; padding: 8px 0; border-radius: 4px; background-color: transparent; line-height: 1; cursor: pointer; display: block; user-select: none; }}")
 html_parts.append(".tb-btn-wide { flex: 1.5 1 0; }")
 html_parts.append(".row-zero, .row-extra, #memo-section { display: none !important; }")
@@ -213,10 +227,7 @@ for row_idx, (period, time_range) in enumerate(period_times):
 for row_idx, (period, time_str) in enumerate(period_times):
     row_class = "row-zero" if period == "조회" else ("row-extra" if period in ["8교시", "9교시"] else "")
     td_p_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""; p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']; p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
-    
-    # 🚨 [수정 1] 누락되었던 <tr class='{row_class}'> 태그 복구 완료!
     html_parts.append(f"<tr class='{row_class}'>")
-    
     start_t, end_t = time_str.split('\n')
     html_parts.append(f"<td class='{td_p_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div><div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div></td>")
     
@@ -228,7 +239,11 @@ for row_idx, (period, time_str) in enumerate(period_times):
         bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']; fg = t['cell_fg']; deco = "line-through" if subj == "__STRIKE__" else "none"
         if subj == "__STRIKE__": fg = "gray"; subj = "-"
         td_c_class = "hl-fill-yellow" if (is_current_week and col == today_idx and row_idx == active_row) else ""
-        html_parts.append(f"<td class='{td_c_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco};'>{subj.replace('\\n','<br>')}</div></td>")
+        
+        # 🚨 [수정 1] 줄바꿈 및 일관된 폰트, 정렬(flex) 적용 복구
+        display_subj = subj.replace('\n', '<br>').replace('\\n', '<br>') if subj else ""
+        html_parts.append(f"<td class='{td_c_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:14px; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display_subj}</div></td>")
+        
     html_parts.append("</tr>")
 html_parts.append("</table></div>")
 
