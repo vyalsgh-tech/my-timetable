@@ -117,7 +117,7 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (어떠한 모바일에서도 절대 튕겨나가지 않는 무적의 툴바 로직 + 스크롤바 유지)
+# 💡 글로벌 CSS 설정
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
@@ -132,7 +132,7 @@ st.markdown(f"""
         margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; color: {t['text']} !important;
     }}
     
-    /* 1. 아이콘 툴바 전체 박스 완벽 고정 (모바일 붕괴 원천 차단) */
+    /* 1. 아이콘 툴바 전체 박스 완벽 고정 */
     div[data-testid="stHorizontalBlock"] {{
         display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
         background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 8px !important; margin-bottom: 10px !important;
@@ -146,7 +146,7 @@ st.markdown(f"""
         padding: 0 !important; margin: 0 !important; display: block !important;
     }}
     
-    /* 3. 화살표 아주 좁게 (32px), 이번주 버튼 (65px) 바짝 붙이기 정밀 타격 */
+    /* 3. 화살표 아주 좁게 (32px), 이번주 버튼 (65px) 바짝 붙이기 */
     div[data-testid="stHorizontalBlock"] > div:nth-child(1),
     div[data-testid="stHorizontalBlock"] > div:nth-child(3) {{
         flex: 0 0 32px !important; width: 32px !important; min-width: 32px !important;
@@ -183,28 +183,20 @@ st.markdown(f"""
     .hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}
     .hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}
 
-    /* 메모장 세련된 스크롤바 커스텀 CSS 유지 */
+    /* 메모장 세련된 스크롤바 */
     .memo-container {{
-        height: 300px;
-        overflow-y: auto;
-        border: 1px solid {t['grid']};
-        border-radius: 6px;
-        padding: 6px;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
+        height: 300px; overflow-y: auto; border: 1px solid {t['grid']}; border-radius: 6px; padding: 6px;
+        scrollbar-width: thin; scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
     }}
     .memo-container::-webkit-scrollbar {{ width: 6px; }}
     .memo-container::-webkit-scrollbar-track {{ background: transparent; }}
-    .memo-container::-webkit-scrollbar-thumb {{
-        background-color: rgba(150, 150, 150, 0.5);
-        border-radius: 10px;
-    }}
+    .memo-container::-webkit-scrollbar-thumb {{ background-color: rgba(150, 150, 150, 0.5); border-radius: 10px; }}
     .memo-container::-webkit-scrollbar-thumb:hover {{ background-color: rgba(150, 150, 150, 0.8); }}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 복원
+# 1. 상단 헤더
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 <span style='font-size:13px; font-weight:normal;'>({u} 선생님)</span></div></div>", unsafe_allow_html=True)
@@ -360,19 +352,15 @@ def display_dashboard():
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
-    # 💡 🔥 메모장 렌더링 (타임스탬프 추가 및 완료 항목 하단 정렬 로직)
+    # 🔥 1줄로 쫙 펴서 마크다운 버그를 원천 차단한 메모장 HTML 출력부
     if st.session_state.show_memo:
         html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div class='memo-container'>")
         if memos_list:
-            # 1. 원래의 고유 번호를 먼저 기록 (최신순 번호 유지)
             for i, m in enumerate(memos_list):
                 m['display_num'] = len(memos_list) - i
             
-            # 2. 취소선(완료) 여부에 따라 리스트 분리
             active_memos = [m for m in memos_list if not m.get('is_strike', False)]
             completed_memos = [m for m in memos_list if m.get('is_strike', False)]
-            
-            # 3. 진행 중 항목 먼저, 완료 항목을 맨 밑으로 병합
             sorted_memos = active_memos + completed_memos
 
             for m in sorted_memos:
@@ -380,28 +368,21 @@ def display_dashboard():
                 text, is_strike, is_imp = m['memo_text'], m.get('is_strike', False), m.get('is_important', False)
                 raw_time = m.get('created_at', '')
                 
-                # 💡 타임스탬프 한국 시간(KST) 변환
                 time_str = ""
                 if raw_time:
                     try:
-                        # Supabase의 UTC ISO 포맷을 파싱
                         clean_time = raw_time.replace('Z', '+00:00')
                         dt_utc = datetime.fromisoformat(clean_time)
                         dt_kst = dt_utc.astimezone(timezone(timedelta(hours=9)))
                         time_str = dt_kst.strftime('%y.%m.%d %H:%M')
                     except:
-                        time_str = raw_time[:10] # 에러 시 날짜만 표시
+                        time_str = raw_time[:10]
 
                 prefix = "⭐ " if is_imp else ""
                 deco, color = ("line-through", "gray") if is_strike else ("none", t['text'])
                 
-                # Flexbox를 사용하여 왼쪽엔 메모, 오른쪽 끝에 타임스탬프를 배치
-                html_parts.append(f"""
-                <div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']}; display:flex; justify-content:space-between; align-items:flex-start;'>
-                    <div style='flex:1; word-break:break-word;'><b>{num}.</b> {prefix}{text}</div>
-                    <div style='font-size:11px; font-weight:normal; opacity:0.6; white-space:nowrap; margin-left:8px; margin-top:2px;'>{time_str}</div>
-                </div>
-                """)
+                # 💡 들여쓰기와 줄바꿈을 완벽히 제거하여 Streamlit 마크다운 코드블록 버그를 방지한 한 줄 코드!
+                html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']}; display:flex; justify-content:space-between; align-items:flex-start;'><div style='flex:1; word-break:break-word;'><b>{num}.</b> {prefix}{text}</div><div style='font-size:11px; font-weight:normal; opacity:0.6; white-space:nowrap; margin-left:8px; margin-top:2px;'>{time_str}</div></div>")
         else: 
             html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
         html_parts.append("</div></div>")
