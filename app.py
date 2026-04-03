@@ -41,8 +41,7 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
 def update_db_bg(url, headers, user, key, val):
-    try:
-        requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
+    try: requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
     except: pass
 
 def verify_and_load_user(user_id):
@@ -118,53 +117,45 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (모바일 강제 붕괴 완전 차단 로직)
+# 💡 글로벌 CSS 설정 (어떠한 모바일에서도 절대 튕겨나가지 않는 무적의 툴바 로직 + 스크롤바 추가)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
     * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
     .element-container, .stMarkdown, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
-    
-    .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
-    
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 1. 상단 헤더 450px 완벽 고정 */
+    /* 상단 헤더 450px 고정 */
     .header-container {{
         width: 100% !important; max-width: 450px !important; 
         margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; color: {t['text']} !important;
     }}
     
-    /* 🚨 2. 스트림릿 모바일 강제 붕괴 완전 차단 (@media 9999px 우선순위 덮어쓰기) */
-    @media screen and (max-width: 9999px) {{
-        /* 툴바 컨테이너를 가로 한 줄로 강제 고정 */
-        div[data-testid="stHorizontalBlock"] {{
-            display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-            background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 8px !important; margin-bottom: 10px !important;
-            width: 100% !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
-        }}
-        
-        /* 모든 버튼 컬럼들이 세로로 쌓이지 않도록 너비 강제 수축 허용 */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-            flex: 1 1 0px !important; 
-            width: auto !important; min-width: 0px !important; max-width: none !important; 
-            padding: 0 !important; margin: 0 !important; display: block !important;
-        }}
-        
-        /* ◀, ▶ 화살표 32px 폭 고정 */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
-            flex: 0 0 32px !important; width: 32px !important; min-width: 32px !important;
-        }}
-        
-        /* 이번주 버튼 65px 폭 고정 */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
-            flex: 0 0 65px !important; width: 65px !important; min-width: 65px !important;
-        }}
+    /* 🚨 1. 아이콘 툴바 전체 박스 완벽 고정 (모바일 붕괴 원천 차단) */
+    div[data-testid="stHorizontalBlock"] {{
+        display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
+        background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 8px !important; margin-bottom: 10px !important;
+        width: 100% !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
     }}
     
-    /* 버튼 디자인 통일 */
+    /* 🚨 2. 내부 버튼들의 모바일 100% 확장 악성 로직 분쇄 */
+    div[data-testid="stHorizontalBlock"] > div {{
+        flex: 1 1 0px !important; 
+        width: auto !important; min-width: 0px !important; max-width: none !important; 
+        padding: 0 !important; margin: 0 !important; display: block !important;
+    }}
+    
+    /* 🚨 3. 화살표 아주 좁게 (32px), 이번주 버튼 (65px) 바짝 붙이기 정밀 타격 */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1),
+    div[data-testid="stHorizontalBlock"] > div:nth-child(3) {{
+        flex: 0 0 32px !important; width: 32px !important; min-width: 32px !important;
+    }}
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) {{
+        flex: 0 0 65px !important; width: 65px !important; min-width: 65px !important;
+    }}
+    
+    /* 🚨 4. 버튼 디자인 및 활성화(ON) 색상 완벽 연동 */
     div[data-testid="stHorizontalBlock"] .stButton > button {{
         height: 34px !important; border-radius: 6px !important; font-size: 13px !important; font-weight: bold !important;
         padding: 0 !important; line-height: 1 !important; width: 100% !important; min-width: 0 !important; display: block !important;
@@ -173,7 +164,7 @@ st.markdown(f"""
     div[data-testid="stHorizontalBlock"] .stButton > button[kind="secondary"] {{
         background-color: transparent !important; color: {t['text']} !important; border: none !important;
     }}
-    /* 켜진 버튼 (Primary) */
+    /* 켜진 버튼 (Primary) - 빨갛게 활성화됨! */
     div[data-testid="stHorizontalBlock"] .stButton > button[kind="primary"] {{
         background-color: {t['hl_per']} !important; color: #ffffff !important; border: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
     }}
@@ -186,10 +177,6 @@ st.markdown(f"""
     }}
     div[data-testid="stPopover"] svg {{ display: none !important; }}
     
-    div[data-testid="stHorizontalBlock"] .stMarkdown, div[data-testid="stHorizontalBlock"] .stMarkdown p {{
-        margin: 0 !important; padding: 0 !important; width: 100% !important; line-height: 1 !important;
-    }}
-
     /* 시간표 테이블 CSS */
     .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }}
     .mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 45px; }}
@@ -198,7 +185,7 @@ st.markdown(f"""
     .hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}
     .hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}
 
-    /* 🔥 메모장 세련된 스크롤바 커스텀 CSS 유지 */
+    /* 🔥 메모장 세련된 스크롤바 커스텀 CSS 추가 */
     .memo-container {{
         height: 300px;
         overflow-y: auto;
@@ -210,18 +197,24 @@ st.markdown(f"""
         scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
     }}
     /* Chrome, Edge, Safari 커스텀 스크롤바 */
-    .memo-container::-webkit-scrollbar {{ width: 6px; }}
-    .memo-container::-webkit-scrollbar-track {{ background: transparent; }}
+    .memo-container::-webkit-scrollbar {{
+        width: 6px;
+    }}
+    .memo-container::-webkit-scrollbar-track {{
+        background: transparent;
+    }}
     .memo-container::-webkit-scrollbar-thumb {{
         background-color: rgba(150, 150, 150, 0.5);
         border-radius: 10px;
     }}
-    .memo-container::-webkit-scrollbar-thumb:hover {{ background-color: rgba(150, 150, 150, 0.8); }}
+    .memo-container::-webkit-scrollbar-thumb:hover {{
+        background-color: rgba(150, 150, 150, 0.8);
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 복원
+# 1. 상단 헤더
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 <span style='font-size:13px; font-weight:normal;'>({u} 선생님)</span></div></div>", unsafe_allow_html=True)
@@ -241,7 +234,7 @@ def display_dashboard():
         if r_memo.status_code == 200: memos_list = r_memo.json()
     except: pass
 
-    # 💡 툴바 (오류 없는 순수 파이썬 버튼으로 통일 및 부분 렌더링 유지)
+    # 💡 툴바
     c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
     with c1:
         if st.button("◀", use_container_width=True, key="prev"): 
@@ -377,7 +370,7 @@ def display_dashboard():
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
-    # 💡 🔥 메모장 렌더링 (커스텀 스크롤바가 적용된 memo-container 유지)
+    # 🔥 메모장 렌더링 (커스텀 스크롤바가 적용된 memo-container 클래스)
     if st.session_state.show_memo:
         html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div class='memo-container'>")
         if memos_list:
