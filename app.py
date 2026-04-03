@@ -22,7 +22,6 @@ if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = N
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
 if 'show_extra' not in st.session_state: st.session_state.show_extra = False
-# 💡 메모는 펴기가 기본 상태
 if 'show_memo' not in st.session_state: st.session_state.show_memo = True 
 if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
@@ -41,7 +40,7 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
-# 🔥 백그라운드 DB 통신 함수 (화면 멈춤 완전 제거!)
+# 🔥 백그라운드 DB 통신 함수
 def update_db_bg(url, headers, user, key, val):
     try:
         requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
@@ -120,7 +119,7 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (헤더 & 툴바 및 내부 아이콘 완전 무적 고정)
+# 💡 글로벌 CSS 설정 (헤더 & 툴바 및 내부 아이콘 절대 크기 고정)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
@@ -138,22 +137,21 @@ st.markdown(f"""
         margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; color: {t['text']} !important;
     }}
     
-    /* 🚨 2. 아이콘 툴바 450px 완벽 고정 */
+    /* 🚨 2. 아이콘 툴바 450px 완벽 고정 (수축 완전 차단) */
     div[data-testid="stHorizontalBlock"] {{
         display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
         background-color: {t['top']} !important; padding: 4px 2px !important; border-radius: 6px !important; margin-bottom: 10px !important;
         width: 450px !important; min-width: 450px !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
     }}
     
-    /* 🚨 3. 내부 아이콘들 찌그러짐 방지 (고정 픽셀 할당) */
+    /* 🚨 3. 내부 아이콘들 찌그러짐 방지 (비율로 균등 분배하여 절대 크기 고정) */
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-        flex: 0 0 51px !important; /* 51px 절대 고정 */
-        width: 51px !important; min-width: 51px !important; max-width: 51px !important; 
+        flex: 1 1 0% !important; 
+        width: auto !important; min-width: 0 !important; max-width: none !important;
         padding: 0 !important; margin: 0 !important;
     }}
     div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
-        flex: 0 0 74px !important; /* 이번주 버튼 절대 고정 */
-        width: 74px !important; min-width: 74px !important; max-width: 74px !important;
+        flex: 1.4 1 0% !important; /* 이번주 버튼 공간 확보 */
     }}
     
     /* 툴바 내 버튼 투명화 */
@@ -237,7 +235,7 @@ def display_dashboard():
     except: pass
 
     # 💡 툴바
-    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8) # CSS 강제 고정이므로 비율 불필요
+    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8) 
     with c1:
         if st.button("◀", use_container_width=True): 
             st.session_state.week_offset -= 1
