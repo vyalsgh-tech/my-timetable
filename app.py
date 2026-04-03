@@ -22,7 +22,6 @@ if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = N
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
 if 'show_extra' not in st.session_state: st.session_state.show_extra = False
-# 💡 메모는 펴기가 기본 상태
 if 'show_memo' not in st.session_state: st.session_state.show_memo = True 
 if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
@@ -41,7 +40,6 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
-# 🔥 백그라운드 DB 통신 함수
 def update_db_bg(url, headers, user, key, val):
     try:
         requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
@@ -120,7 +118,7 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (모든 스마트폰에서 100% 작동하는 원시적이고 완벽한 강제 고정 코드)
+# 💡 글로벌 CSS 설정 (호환성 100% 무적 툴바 정렬 & 폭발 방지)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
@@ -132,33 +130,36 @@ st.markdown(f"""
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 🚨 1. 상단 헤더 450px 완벽 고정 */
+    /* 1. 상단 헤더 450px 완벽 고정 */
     .header-container {{
         width: 100% !important; max-width: 450px !important; 
         margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; color: {t['text']} !important;
     }}
     
-    /* 🚨 2. 아이콘 툴바 450px 절대 고정 (모든 호환성 문제 해결을 위해 선택자 단순화) */
-    /* 스트림릿 전체에서 HorizontalBlock은 툴바 하나뿐이므로 직접 타겟팅하여 무조건 가로 배열 강제 */
+    /* 🚨 2. 아이콘 툴바 450px 정렬 및 화살표 폭 축소! */
     div[data-testid="stHorizontalBlock"] {{
         display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-        background-color: {t['top']} !important; padding: 4px 2px !important; border-radius: 6px !important; margin-bottom: 10px !important;
+        background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 6px !important; margin-bottom: 10px !important;
         width: 100% !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
     }}
     
-    /* 🚨 3. 스트림릿의 모바일 640px 붕괴 로직을 전면 차단하는 미디어 쿼리 덮어쓰기 */
-    @media screen and (max-width: 9999px) {{
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-            flex: 1 1 0px !important; /* 화면이 작아져도 비율 유지하며 수축 */
-            width: auto !important; min-width: 0 !important; max-width: none !important;
-            padding: 0 !important; margin: 0 !important; display: block !important;
-        }}
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
-            flex: 1.5 1 0px !important; /* 이번주 버튼만 공간 1.5배 할당 */
-        }}
+    /* 기본 아이콘들은 남는 공간을 예쁘게 나누어 가짐 */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+        flex: 1 1 0px !important; min-width: 0 !important; width: auto !important; padding: 0 !important; margin: 0 !important;
     }}
     
-    /* 툴바 내 버튼 디자인 */
+    /* 🔥 직전주, 다음주 화살표 폭을 아주 좁게(32px) 압축하여 바짝 붙임 */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
+        flex: 0 0 32px !important; width: 32px !important;
+    }}
+    
+    /* 🔥 이번주 버튼은 65px로 고정하여 3개의 버튼이 하나의 덩어리처럼 보이게 함 */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
+        flex: 0 0 65px !important; width: 65px !important;
+    }}
+    
+    /* 툴바 내 버튼 통일 (아이콘 뒤죽박죽 현상 완벽 해결) */
     div[data-testid="stHorizontalBlock"] .stButton > button {{
         height: 32px !important; border-radius: 4px !important; font-size: 13px !important; font-weight: bold !important;
         background-color: transparent !important; color: {t['text']} !important; border: none !important;
@@ -174,31 +175,10 @@ st.markdown(f"""
         border: none !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important;
     }}
     div[data-testid="stPopover"] svg {{ display: none !important; }}
-
-    /* 🔥 순수 HTML 라벨 버튼 */
-    .css-btn {{
-        display: flex; justify-content: center; align-items: center; height: 32px; border-radius: 4px;
-        font-size: 13px; font-weight: bold; background-color: transparent; color: {t['text']};
-        border: none; cursor: pointer; width: 100%; user-select: none; margin: 0 !important;
-    }}
-    .css-btn:active {{ opacity: 0.6; }}
     
     /* 마크다운 공백 제거 */
-    div[data-testid="stHorizontalBlock"] .stMarkdown,
-    div[data-testid="stHorizontalBlock"] .stMarkdown p {{
+    div[data-testid="stHorizontalBlock"] .stMarkdown, div[data-testid="stHorizontalBlock"] .stMarkdown p {{
         margin: 0 !important; padding: 0 !important; width: 100% !important; line-height: 1 !important;
-    }}
-
-    /* 🚨 체크박스 해킹을 이용한 0.001초 접기/펴기 */
-    .row-zero, .row-extra, #memo-section {{ display: none; }}
-    html:has(#chk-zero:checked) .row-zero {{ display: table-row !important; }}
-    html:has(#chk-extra:checked) .row-extra {{ display: table-row !important; }}
-    html:has(#chk-memo:checked) #memo-section {{ display: block !important; }}
-    
-    html:has(#chk-zero:checked) label[for='chk-zero'],
-    html:has(#chk-extra:checked) label[for='chk-extra'],
-    html:has(#chk-memo:checked) label[for='chk-memo'] {{
-        background-color: {t['hl_per']} !important; color: #ffffff !important; box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
     }}
 
     /* 시간표 테이블 CSS */
@@ -212,22 +192,17 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더 복원 (표민호 선생님)
+# 1. 상단 헤더 복원
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 <span style='font-size:13px; font-weight:normal;'>({u} 선생님)</span></div></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 2. 🔥 부분 렌더링 구역 (툴바 + 시간표 + 메모장)
+# 버튼 통일 및 파이썬 로직 제어로 브라우저 호환성 100% 확보!
 # ---------------------------------------------------------
 @st.fragment
 def display_dashboard():
-    
-    st.markdown("""
-        <input type='checkbox' id='chk-memo' style='display:none;' checked />
-        <input type='checkbox' id='chk-zero' style='display:none;' />
-        <input type='checkbox' id='chk-extra' style='display:none;' />
-    """, unsafe_allow_html=True)
     
     custom_data = {}
     memos_list = []
@@ -238,7 +213,7 @@ def display_dashboard():
         if r_memo.status_code == 200: memos_list = r_memo.json()
     except: pass
 
-    # 💡 툴바
+    # 💡 툴바 (오류를 막기 위해 모든 버튼을 순정 st.button으로 완벽히 통일)
     c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8) 
     with c1:
         if st.button("◀", use_container_width=True): 
@@ -257,11 +232,24 @@ def display_dashboard():
         if st.button("🔄", use_container_width=True): 
             safe_fragment_rerun() 
     with c5:
-        st.markdown("<label class='css-btn' for='chk-memo'>📝</label>", unsafe_allow_html=True)
+        # 💡 호환성 100% 파이썬 토글 로직 부활! (누르면 부분 렌더링으로 0.1초 즉각 반응)
+        btn_type = "primary" if st.session_state.show_memo else "secondary"
+        if st.button("📝", use_container_width=True, type=btn_type): 
+            st.session_state.show_memo = not st.session_state.show_memo
+            threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_memo", st.session_state.show_memo)).start()
+            safe_fragment_rerun()
     with c6:
-        st.markdown("<label class='css-btn' for='chk-zero'>☀️</label>", unsafe_allow_html=True)
+        btn_type = "primary" if st.session_state.show_zero else "secondary"
+        if st.button("☀️", use_container_width=True, type=btn_type): 
+            st.session_state.show_zero = not st.session_state.show_zero
+            threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_zero", st.session_state.show_zero)).start()
+            safe_fragment_rerun()
     with c7:
-        st.markdown("<label class='css-btn' for='chk-extra'>🌙</label>", unsafe_allow_html=True)
+        btn_type = "primary" if st.session_state.show_extra else "secondary"
+        if st.button("🌙", use_container_width=True, type=btn_type): 
+            st.session_state.show_extra = not st.session_state.show_extra
+            threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_extra", st.session_state.show_extra)).start()
+            safe_fragment_rerun()
     with c8:
         with st.popover("⚙️", use_container_width=True):
             new_theme = st.selectbox("🎨 테마 변경", [th['name'] for th in themes], index=st.session_state.theme_idx)
@@ -327,10 +315,13 @@ def display_dashboard():
     base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
     for row_idx, (period, time_str) in enumerate(period_times):
         
-        row_class = "row-zero" if period == "조회" else ("row-extra" if period in ["8교시", "9교시"] else "")
+        # 💡 파이썬 단에서 즉각적으로 행 렌더링 통제 (호환성 에러 원천 차단)
+        if period == "조회" and not st.session_state.show_zero: continue
+        if period in ["8교시", "9교시"] and not st.session_state.show_extra: continue
+
         td_period_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""
         
-        html_parts.append(f"<tr class='{row_class}'>")
+        html_parts.append("<tr>")
         p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']
         p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
         start_t, end_t = time_str.split('\n')
@@ -361,17 +352,18 @@ def display_dashboard():
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
-    # 메모장
-    html_parts.append(f"<div id='memo-section' style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
-    if memos_list:
-        for i, m in enumerate(memos_list):
-            num = len(memos_list) - i
-            text, is_strike, is_imp = m['memo_text'], m.get('is_strike', False), m.get('is_important', False)
-            prefix = "⭐ " if is_imp else ""
-            deco, color = ("line-through", "gray") if is_strike else ("none", t['text'])
-            html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']};'><b>{num}.</b> {prefix}{text}</div>")
-    else: html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
-    html_parts.append("</div></div>")
+    # 💡 메모장 렌더링 로직 복원 (파이썬 통제)
+    if st.session_state.show_memo:
+        html_parts.append(f"<div id='memo-section' style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
+        if memos_list:
+            for i, m in enumerate(memos_list):
+                num = len(memos_list) - i
+                text, is_strike, is_imp = m['memo_text'], m.get('is_strike', False), m.get('is_important', False)
+                prefix = "⭐ " if is_imp else ""
+                deco, color = ("line-through", "gray") if is_strike else ("none", t['text'])
+                html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']};'><b>{num}.</b> {prefix}{text}</div>")
+        else: html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
+        html_parts.append("</div></div>")
 
     st.markdown("".join(html_parts), unsafe_allow_html=True)
 
