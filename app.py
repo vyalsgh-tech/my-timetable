@@ -22,7 +22,7 @@ if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = N
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
 if 'show_extra' not in st.session_state: st.session_state.show_extra = False
-if 'show_memo' not in st.session_state: st.session_state.show_memo = False # 기본 접힘 상태로 시작 가능
+if 'show_memo' not in st.session_state: st.session_state.show_memo = False
 if 'teacher' not in st.session_state: st.session_state.teacher = None
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
@@ -45,7 +45,7 @@ def verify_and_load_user(user_id):
 if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
-# --- ⚙️ 설정 모달창 (개인별 격리) ---
+# --- ⚙️ 설정 모달창 ---
 @st.dialog("⚙️ 설정 및 관리")
 def settings_modal():
     new_theme = st.selectbox("🎨 테마 변경", [th['name'] for th in themes], index=st.session_state.theme_idx)
@@ -73,7 +73,7 @@ if "action" in params and params["action"] == "settings":
     u_id = st.session_state.logged_in_user
     st.query_params.clear(); st.query_params["user"] = u_id; settings_modal()
 
-# --- 데이터 로드 (개인별 필터링 강화) ---
+# --- 데이터 로드 ---
 @st.cache_data
 def load_csv_for_user(target_teacher):
     days = ["월", "화", "수", "목", "금"]
@@ -85,7 +85,8 @@ def load_csv_for_user(target_teacher):
                 for row in reader:
                     if not row or len(row) < 36: continue
                     if str(row[0]).strip() == str(target_teacher).strip():
-                        t_data[row[0]] = {d: row[1 + i*7 : 1 + (i+1)*7][:9] for i, d in enumerate(days)}
+                        periods_per_day = (len(row) - 1) // 5
+                        t_data[row[0]] = {d: row[1 + i*periods_per_day : 1 + (i+1)*periods_per_day][:9] for i, d in enumerate(days)}
                         break
         except: pass
     return t_data
@@ -146,12 +147,11 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# 1. 상단 헤더 (성함 표기)
+# 1. 상단 헤더
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 ({st.session_state.logged_in_user} 선생님)</div></div>", unsafe_allow_html=True)
 
 # 2. 🔥 순수 HTML 툴바 & 반응형 시간표
 u = st.session_state.logged_in_user; cur_w = st.session_state.week_offset
-# 🚨 [수정] 주차 이동 시 현재 유저 정보를 명확하게 고정하여 넘김
 link_prev = f"/?user={u}&w={cur_w - 1}&t={u}"
 link_next = f"/?user={u}&w={cur_w + 1}&t={u}"
 link_today = f"/?user={u}&w=0&t={u}"
@@ -161,17 +161,14 @@ bg_today = t['hl_per'] if (cur_w == 0) else "transparent"
 fg_today = "#ffffff" if (cur_w == 0) else t['text']
 
 html_parts = []
-# 🚨 [수정] 메모장 접기/펴기 CSS 로직 최적화
 html_parts.append("<style>")
 html_parts.append(f".pure-html-toolbar {{ display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; background-color: {t['top']}; padding: 4px 2px; border-radius: 6px; margin-bottom: 10px; width: 100%; max-width: 460px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); gap: 2px; }}")
 html_parts.append(f".tb-btn {{ flex: 1 1 0; text-align: center; text-decoration: none !important; color: {t['text']}; font-size: 13px; font-weight: bold; padding: 8px 0; border-radius: 4px; background-color: transparent; line-height: 1; cursor: pointer; display: block; user-select: none; }}")
 html_parts.append(".tb-btn-wide { flex: 1.5 1 0; }")
 html_parts.append(".row-zero, .row-extra, #memo-section { display: none !important; }")
-# 체크박스 해킹: 체크되면 보이기
 html_parts.append("#chk-zero:checked ~ .app-container .row-zero { display: table-row !important; }")
 html_parts.append("#chk-extra:checked ~ .app-container .row-extra { display: table-row !important; }")
 html_parts.append("#chk-memo:checked ~ .app-container #memo-section { display: block !important; }")
-# 버튼 강조 색상
 html_parts.append(f"#chk-zero:checked ~ .app-container label[for='chk-zero'], #chk-extra:checked ~ .app-container label[for='chk-extra'], #chk-memo:checked ~ .app-container label[for='chk-memo'] {{ background-color: {t['hl_per']} !important; color: #ffffff !important; }}")
 html_parts.append(".mobile-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }")
 html_parts.append(f".mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 45px; }}")
@@ -180,10 +177,13 @@ html_parts.append(f".hl-border-red {{ box-shadow: inset 0 0 0 3px {t['hl_per']} 
 html_parts.append(f".hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; }}")
 html_parts.append("</style>")
 
-# 접기 상태를 제어할 숨겨진 체크박스 (항상 HTML 상단 배치)
-html_parts.append("<input type='checkbox' id='chk-memo' style='display:none;' />")
-html_parts.append("<input type='checkbox' id='chk-zero' style='display:none;' />")
-html_parts.append("<input type='checkbox' id='chk-extra' style='display:none;' />")
+chk_memo_attr = "checked" if st.session_state.show_memo else ""
+chk_zero_attr = "checked" if st.session_state.show_zero else ""
+chk_extra_attr = "checked" if st.session_state.show_extra else ""
+
+html_parts.append(f"<input type='checkbox' id='chk-memo' style='display:none;' {chk_memo_attr} />")
+html_parts.append(f"<input type='checkbox' id='chk-zero' style='display:none;' {chk_zero_attr} />")
+html_parts.append(f"<input type='checkbox' id='chk-extra' style='display:none;' {chk_extra_attr} />")
 
 html_parts.append("<div class='app-container'>")
 html_parts.append("<div class='pure-html-toolbar'>")
@@ -196,7 +196,6 @@ html_parts.append("<label class='tb-btn' for='chk-extra'>🌙</label>")
 html_parts.append(f"<a class='tb-btn' href='{link_set}' target='_self'>⚙️</a>")
 html_parts.append("</div>")
 
-# 시간표 테이블
 html_parts.append(f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'><table class='mobile-table'><tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'><th style='width: 13%;'>교시</th>")
 for col, day in enumerate(days):
     date_str = (monday + timedelta(days=col)).strftime("%m/%d"); th_class = "hl-border-red" if (is_current_week and col == today_idx) else ""; th_bg = t['hl_per'] if (is_current_week and col == today_idx) else t['head_bg']; th_fg = 'white' if (is_current_week and col == today_idx and t['name'] != '웜 파스텔') else t['head_fg']
@@ -217,7 +216,8 @@ for row_idx, (period, time_str) in enumerate(period_times):
     for col, day in enumerate(days):
         row_num = row_idx + 1; date_key = f"{(monday + timedelta(days=col)).strftime('%Y-%m-%d')}_{row_num}"
         s_idx = row_num-2 if row_num<6 else row_num-3
-        subj = base_schedule[day][s_idx] if period != "점심" and s_idx < len(base_schedule[day]) else ""
+        # 🚨 [오류 수정] 조회/점심 시간 예외처리 보강으로 -1 버그 방지
+        subj = base_schedule[day][s_idx] if period not in ["조회", "점심"] and 0 <= s_idx < len(base_schedule.get(day, [])) else ""
         if date_key in custom_data: subj = custom_data[date_key]
         bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']; fg = t['cell_fg']; deco = "line-through" if subj == "__STRIKE__" else "none"
         if subj == "__STRIKE__": fg = "gray"; subj = "-"
