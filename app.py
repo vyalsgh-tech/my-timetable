@@ -41,7 +41,8 @@ SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
 def update_db_bg(url, headers, user, key, val):
-    try: requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
+    try:
+        requests.patch(f"{url}/rest/v1/users?teacher_name=eq.{user}", headers=headers, json={key: val}, timeout=3)
     except: pass
 
 def verify_and_load_user(user_id):
@@ -117,66 +118,64 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (어떠한 모바일에서도 절대 튕겨나가지 않는 무적의 툴바 로직)
+# 💡 글로벌 CSS 설정 (기존 450px 툴바 고정 유지 + 메모장 세련된 스크롤바 추가)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
     * {{ animation-duration: 0s !important; transition-duration: 0s !important; }}
     .element-container, .stMarkdown, div[data-testid="stPopoverBody"] {{ animation: none !important; transition: none !important; }}
+    
+    .stApp {{ background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
+    
     .block-container {{ padding: 0.5rem 0.2rem !important; max-width: 100% !important; }}
     header {{ visibility: hidden; }}
     
-    /* 상단 헤더 450px 고정 */
+    /* 1. 상단 헤더 450px 완벽 고정 */
     .header-container {{
         width: 100% !important; max-width: 450px !important; 
         margin: 0 auto 5px 0 !important; display: flex !important; align-items: center; padding-left: 2px; color: {t['text']} !important;
     }}
     
-    /* 🚨 1. 아이콘 툴바 전체 박스 완벽 고정 (모바일 붕괴 원천 차단) */
+    /* 2. 아이콘 툴바 450px 정렬 및 화살표 폭 축소! */
     div[data-testid="stHorizontalBlock"] {{
         display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-        background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 8px !important; margin-bottom: 10px !important;
+        background-color: {t['top']} !important; padding: 4px 4px !important; border-radius: 6px !important; margin-bottom: 10px !important;
         width: 100% !important; max-width: 450px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; gap: 2px !important;
     }}
     
-    /* 🚨 2. 내부 버튼들의 모바일 100% 확장 악성 로직 분쇄 */
-    div[data-testid="stHorizontalBlock"] > div {{
-        flex: 1 1 0px !important; 
-        width: auto !important; min-width: 0px !important; max-width: none !important; 
-        padding: 0 !important; margin: 0 !important; display: block !important;
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+        flex: 1 1 0px !important; min-width: 0 !important; width: auto !important; padding: 0 !important; margin: 0 !important;
     }}
     
-    /* 🚨 3. 화살표 아주 좁게 (32px), 이번주 버튼 (65px) 바짝 붙이기 정밀 타격 */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(1),
-    div[data-testid="stHorizontalBlock"] > div:nth-child(3) {{
-        flex: 0 0 32px !important; width: 32px !important; min-width: 32px !important;
-    }}
-    div[data-testid="stHorizontalBlock"] > div:nth-child(2) {{
-        flex: 0 0 65px !important; width: 65px !important; min-width: 65px !important;
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {{
+        flex: 0 0 32px !important; width: 32px !important;
     }}
     
-    /* 🚨 4. 버튼 디자인 및 활성화(ON) 색상 완벽 연동 */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {{
+        flex: 0 0 65px !important; width: 65px !important;
+    }}
+    
     div[data-testid="stHorizontalBlock"] .stButton > button {{
-        height: 34px !important; border-radius: 6px !important; font-size: 13px !important; font-weight: bold !important;
-        padding: 0 !important; line-height: 1 !important; width: 100% !important; min-width: 0 !important; display: block !important;
-    }}
-    /* 꺼진 버튼 (Secondary) */
-    div[data-testid="stHorizontalBlock"] .stButton > button[kind="secondary"] {{
+        height: 32px !important; border-radius: 4px !important; font-size: 13px !important; font-weight: bold !important;
         background-color: transparent !important; color: {t['text']} !important; border: none !important;
+        padding: 0 !important; line-height: 1 !important; width: 100% !important; min-width: 0 !important; display: block;
     }}
-    /* 켜진 버튼 (Primary) - 빨갛게 활성화됨! */
-    div[data-testid="stHorizontalBlock"] .stButton > button[kind="primary"] {{
+    div[data-testid="stHorizontalBlock"] .stButton > button:active {{ opacity: 0.6 !important; background-color: transparent !important; color: {t['text']} !important; }}
+    div[data-testid="stHorizontalBlock"] .stButton > button[data-testid="baseButton-primary"] {{
         background-color: {t['hl_per']} !important; color: #ffffff !important; border: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
     }}
-    div[data-testid="stHorizontalBlock"] .stButton > button:active {{ opacity: 0.6 !important; }}
     
-    /* 설정 톱니바퀴 */
     div[data-testid="stHorizontalBlock"] div[data-testid="stPopover"] > button {{
-        font-size: 15px !important; height: 34px !important; padding: 0 !important; width: 100% !important;
+        font-size: 15px !important; height: 32px !important; padding: 0 !important; width: 100% !important;
         border: none !important; background-color: transparent !important; color: {t['text']} !important; min-width: 0 !important;
     }}
     div[data-testid="stPopover"] svg {{ display: none !important; }}
     
+    div[data-testid="stHorizontalBlock"] .stMarkdown, div[data-testid="stHorizontalBlock"] .stMarkdown p {{
+        margin: 0 !important; padding: 0 !important; width: 100% !important; line-height: 1 !important;
+    }}
+
     /* 시간표 테이블 CSS */
     .mobile-table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }}
     .mobile-table th {{ border: 1px solid {t['grid']}; padding: 4px 1px; text-align: center; height: 45px; }}
@@ -184,18 +183,43 @@ st.markdown(f"""
     .hl-border-red {{ box-shadow: inset 0 0 0 3px {t['hl_per']} !important; z-index: 10; }}
     .hl-border-yellow {{ box-shadow: inset 0 0 0 3px {t['hl_cell']} !important; z-index: 10; }}
     .hl-fill-yellow {{ background-color: {t['hl_cell']} !important; color: black !important; box-shadow: inset 0 0 0 3px #d4ac0d !important; }}
+
+    /* 🔥 메모장 세련된 스크롤바 커스텀 CSS 추가 */
+    .memo-container {{
+        height: 300px;
+        overflow-y: auto;
+        border: 1px solid {t['grid']};
+        border-radius: 6px;
+        padding: 6px;
+        /* Firefox 지원 */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
+    }}
+    /* Chrome, Edge, Safari 커스텀 스크롤바 */
+    .memo-container::-webkit-scrollbar {{
+        width: 6px;
+    }}
+    .memo-container::-webkit-scrollbar-track {{
+        background: transparent;
+    }}
+    .memo-container::-webkit-scrollbar-thumb {{
+        background-color: rgba(150, 150, 150, 0.5);
+        border-radius: 10px;
+    }}
+    .memo-container::-webkit-scrollbar-thumb:hover {{
+        background-color: rgba(150, 150, 150, 0.8);
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 1. 상단 헤더
+# 1. 상단 헤더 복원
 # ---------------------------------------------------------
 u = st.session_state.logged_in_user
 st.markdown(f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 <span style='font-size:13px; font-weight:normal;'>({u} 선생님)</span></div></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 2. 🔥 부분 렌더링 구역 (툴바 + 시간표 + 메모장)
-# 버튼 작동 100% 보장 및 0.1초 반응속도
 # ---------------------------------------------------------
 @st.fragment
 def display_dashboard():
@@ -209,7 +233,7 @@ def display_dashboard():
         if r_memo.status_code == 200: memos_list = r_memo.json()
     except: pass
 
-    # 💡 툴바 (오류 없는 순수 파이썬 버튼, CSS가 강제 1줄 정렬 및 색상 제어)
+    # 💡 툴바 (오류 없는 순수 파이썬 버튼으로 통일 및 부분 렌더링 유지)
     c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
     with c1:
         if st.button("◀", use_container_width=True, key="prev"): 
@@ -310,12 +334,10 @@ def display_dashboard():
     base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
     for row_idx, (period, time_str) in enumerate(period_times):
         
-        # 버튼 상태에 따른 파이썬단 즉각 렌더링 배제
         if period == "조회" and not st.session_state.show_zero: continue
         if period in ["8교시", "9교시"] and not st.session_state.show_extra: continue
 
         td_period_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""
-        
         html_parts.append("<tr>")
         p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']
         p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
@@ -347,9 +369,9 @@ def display_dashboard():
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
-    # 메모장 렌더링
+    # 💡 🔥 메모장 렌더링 (커스텀 스크롤바가 적용된 memo-container 클래스 사용)
     if st.session_state.show_memo:
-        html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div style='height:300px; overflow-y:auto; border:1px solid {t['grid']}; border-radius:6px; padding:6px;'>")
+        html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div class='memo-container'>")
         if memos_list:
             for i, m in enumerate(memos_list):
                 num = len(memos_list) - i
