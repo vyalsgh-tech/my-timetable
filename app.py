@@ -42,7 +42,7 @@ if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
 
-# 💡 PC버전 학사일정 전용 색상 추가
+# PC버전 전용 색상 포함 테마
 themes = [
     { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f', 'text': '#ffffff',
       'acad_per_bg': '#8e44ad', 'acad_per_fg': 'white', 'acad_cell_bg': '#413a52', 'acad_cell_fg': '#f1c40f' },
@@ -106,9 +106,13 @@ if st.session_state.logged_in_user is None:
 def load_csv():
     days = ["월", "화", "수", "목", "금"]
     t_data = {}
-    if os.path.exists('data.csv'):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, 'data.csv')
+    if not os.path.exists(file_path): file_path = 'data.csv'
+        
+    if os.path.exists(file_path):
         try:
-            with open('data.csv', 'r', encoding='utf-8-sig', errors='replace') as f:
+            with open(file_path, 'r', encoding='utf-8-sig', errors='replace') as f:
                 reader = csv.reader(f)
                 next(reader, None)
                 for row in reader:
@@ -126,12 +130,21 @@ def load_csv():
 @st.cache_data
 def load_academic_data():
     academic_schedule = {}
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     target_file = None
-    for f in os.listdir('.'):
-        if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
-            target_file = f
-            break
-    if not target_file: return {}
+    
+    # 💡 웹 서버 환경에서도 절대 튕기지 않는 절대 경로 탐색 로직 (핵심 수정사항)
+    search_dirs = [base_dir, '.']
+    for d in search_dirs:
+        if os.path.exists(d):
+            for f in os.listdir(d):
+                if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
+                    target_file = os.path.join(d, f)
+                    break
+        if target_file: break
+
+    if not target_file or not os.path.exists(target_file): return {}
+    
     try:
         with open(target_file, 'r', encoding='utf-8-sig', errors='replace') as f:
             reader = list(csv.reader(f))
@@ -139,7 +152,8 @@ def load_academic_data():
             header = reader[0]
             month_cols = {}
             for col_idx, val in enumerate(header):
-                m = re.match(r'(\d+)월', val)
+                # 💡 안전한 정규식으로 띄어쓰기 등 다양한 형식에도 유연하게 대처
+                m = re.search(r'(\d+)\s*월', val.strip())
                 if m:
                     month = int(m.group(1))
                     if month not in month_cols: month_cols[month] = col_idx + 1
@@ -161,7 +175,6 @@ academic_data = load_academic_data()
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
-# 💡 PC버전처럼 학사일정 항목 추가
 period_times = [
     ("학사일정", "\n"),
     ("조회", "07:40\n08:00"), ("1교시", "08:00\n08:50"), ("2교시", "09:00\n09:50"),
