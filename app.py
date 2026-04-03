@@ -27,7 +27,6 @@ if 'teacher' not in st.session_state: st.session_state.teacher = None
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
 
-# 🚨 [수정 1] NameError 방지: themes 변수를 함수 호출 전에 최상단에 미리 선언!
 themes = [
     { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f', 'text': '#ffffff' },
     { 'name': '웜 파스텔', 'bg': '#fdf6e3', 'top': '#e4d5b7', 'grid': '#eee8d5', 'head_bg': '#d6caba', 'head_fg': '#333333', 'per_bg': '#e8e2d2', 'per_fg': '#333333', 'cell_bg': '#ffffff', 'lunch_bg': '#f0e6d2', 'cell_fg': '#4a4a4a', 'hl_per': '#ffb6b9', 'hl_cell': '#fae3d9', 'text': '#333333' },
@@ -54,7 +53,7 @@ def verify_and_load_user(user_id):
 if st.session_state.logged_in_user:
     verify_and_load_user(st.session_state.logged_in_user)
 
-# 현재 테마 설정 (유저 데이터 로드 이후에 선언)
+# 현재 테마 설정
 t = themes[st.session_state.theme_idx]
 
 # --- ⚙️ 설정 모달창 (개인별 격리) ---
@@ -72,7 +71,8 @@ def settings_modal():
         st.query_params.clear() 
         st.rerun()
     if st.session_state.logged_in_user == "표민호":
-        st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 [관리자] 비번 초기화</div>")
+        # 🚨 [수정 2] HTML 태그 노출 방지를 위한 unsafe_allow_html=True 추가
+        st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 [관리자] 비번 초기화</div>", unsafe_allow_html=True)
         r_all = requests.get(f"{SUPABASE_URL}/rest/v1/users?select=teacher_name", headers=HEADERS)
         if r_all.status_code == 200:
             user_names = [r['teacher_name'] for r in r_all.json()]
@@ -214,7 +214,9 @@ for row_idx, (period, time_str) in enumerate(period_times):
     row_class = "row-zero" if period == "조회" else ("row-extra" if period in ["8교시", "9교시"] else "")
     td_p_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""; p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']; p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
     
-    # 🚨 [수정 2] 교시(조회 포함) 레이아웃 포맷 통일 복구
+    # 🚨 [수정 1] 누락되었던 <tr class='{row_class}'> 태그 복구 완료!
+    html_parts.append(f"<tr class='{row_class}'>")
+    
     start_t, end_t = time_str.split('\n')
     html_parts.append(f"<td class='{td_p_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div><div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div></td>")
     
