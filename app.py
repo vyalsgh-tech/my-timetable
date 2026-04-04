@@ -129,76 +129,43 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 [버그 완전 해결] 원본 CSV 구조를 100% 반영한 무적의 학사일정 파서
 def load_academic_data():
     academic_schedule = {}
     target_file = None
     
-    # 1. 파일 찾기
-    for root_dir, dirs, files in os.walk('.'):
-        for f in files:
-            clean_f = unicodedata.normalize('NFC', f).replace(" ", "")
-            if "학사일정" in clean_f and clean_f.endswith(".csv") and "수업일수" not in clean_f:
-                target_file = os.path.join(root_dir, f)
-                break
-        if target_file: break
+    for filepath in glob.glob("**/*학사일정*.csv", recursive=True):
+        if "수업일수" not in filepath:
+            target_file = filepath
+            break
 
-    if not target_file or not os.path.exists(target_file):
-        academic_schedule['2026-03-30'] = "파일없음\n오류"
-        return academic_schedule
-
-    # 2. 강력한 바이너리 리더 (인코딩 깨짐 + NUL 바이트 원천 차단)
-    try:
-        with open(target_file, 'rb') as f:
-            raw_bytes = f.read()
-    except Exception as e:
-        academic_schedule['2026-03-30'] = f"파일읽기\n실패"
-        return academic_schedule
-
-    content = ""
+    if not target_file or not os.path.exists(target_file): return {}
+    
+    reader = None
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
-            temp = raw_bytes.decode(enc)
-            if "월" in temp or "일" in temp:
-                content = temp
-                break
+            with open(target_file, 'r', encoding=enc) as f:
+                content = f.read()
+                if "월" in content or "일" in content or "학" in content:
+                    reader = list(csv.reader(io.StringIO(content)))
+                    break
         except: pass
-        
-    if not content: content = raw_bytes.decode('utf-8', errors='replace')
-    content = content.replace('\x00', '') # 악성 NUL 바이트 제거
+
+    if not reader: return {}
     
-    reader = list(csv.reader(io.StringIO(content)))
-    if not reader:
-        academic_schedule['2026-03-30'] = "CSV인식\n실패"
-        return academic_schedule
-    
-    # 3. 선생님의 원본 데이터에 맞춘 완벽한 파싱 로직
     try:
-        header_row_idx = -1
-        month_event_cols = {}
-        seen_months = set()
-        
-        # '월' 글자가 들어있는 진짜 헤더 줄 찾기
+        header_row_idx = 0
         for i, row in enumerate(reader):
-            for col_idx, val in enumerate(row):
-                m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
-                if m:
-                    month = int(m.group(1))
-                    # 처음 등장한 'N월'의 우측 칸이 바로 '행사' 칸! (PC버전 로직 100% 이식)
-                    if month not in seen_months:
-                        seen_months.add(month)
-                        month_event_cols[month] = col_idx + 1
-            if seen_months:
+            if any("월" in str(cell) for cell in row):
                 header_row_idx = i
                 break
                 
-        if header_row_idx == -1:
-            academic_schedule['2026-03-30'] = "헤더탐색\n실패"
-            return academic_schedule
-
-        # 💡 [핵심] 이번 버그의 원인이었던 days_of_week 변수 정상 선언!
+        header = reader[header_row_idx]
+        month_cols = {}
+        for col_idx, val in enumerate(header):
+            m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
+            if m: month_cols[int(m.group(1))] = col_idx + 1
+        
         days_of_week = ['월', '화', '수', '목', '금', '토', '일']
-        parsed_count = 0
         
         for row in reader[header_row_idx + 1:]:
             if not row: continue
@@ -207,29 +174,27 @@ def load_academic_data():
             if not day_match: continue
             day = int(day_match.group(1))
             
-            for month, ev_col in month_event_cols.items():
-                if ev_col < len(row):
-                    event = str(row[ev_col]).strip()
-                    # 요일이나 빈칸이 아닌 진짜 행사 텍스트만 저장
-                    if event and event not in days_of_week and not event.isdigit():
-                        year = 2026 if month >= 3 else 2027
-                        date_str = f"{year}-{month:02d}-{day:02d}"
-                        if date_str in academic_schedule:
-                            academic_schedule[date_str] += f"\n{event}"
-                        else:
-                            academic_schedule[date_str] = event
-                        parsed_count += 1
-                        
-        if parsed_count == 0:
-            academic_schedule['2026-03-30'] = "데이터\n추출 0건"
-
-    except Exception as e:
-        academic_schedule['2026-03-30'] = "파싱\n에러"
-        
+            for month, ev_col in month_cols.items():
+                event = ""
+                for check_col in [ev_col, ev_col - 1, ev_col + 1]:
+                    if 0 <= check_col < len(row):
+                        val = str(row[check_col]).strip()
+                        if val and val not in days_of_week and not val.isdigit():
+                            event = val
+                            break 
+                
+                if event:
+                    year = 2026 if month >= 3 else 2027
+                    date_str = f"{year}-{month:02d}-{day:02d}"
+                    if date_str in academic_schedule:
+                        academic_schedule[date_str] += f"\n{event}"
+                    else:
+                        academic_schedule[date_str] = event
+    except: pass
     return academic_schedule
 
 teachers_data = load_csv()
-academic_data = load_academic_data() # 캐시 삭제 완료
+academic_data = load_academic_data() 
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
@@ -463,11 +428,23 @@ def display_dashboard():
                 s_idx = row_num - 3 if row_num < 7 else row_num - 4
                 if s_idx >= 0 and s_idx < len(base_schedule.get(day, [])): subject = base_schedule[day][s_idx]
             
+            # 💡 [핵심] 모바일 환경에서의 PC 색상 태그 완벽 연동 (정규식 파싱)
             is_strike, is_custom = False, False
+            custom_color = None
+            
             if date_key in custom_data:
                 val = custom_data[date_key]
-                if val == "__STRIKE__": is_strike, is_custom = True, True
-                else: subject, is_custom = val, True
+                if val == "__STRIKE__": 
+                    is_strike, is_custom = True, True
+                else: 
+                    is_custom = True
+                    # 정규식으로 HTML 색상 태그 추출! (PC와 완벽 동기화)
+                    m = re.match(r'^<span style=[\'"]color:([^"\']+)[\'"]>(.*)</span>$', val, re.DOTALL | re.IGNORECASE)
+                    if m:
+                        custom_color = m.group(1)
+                        subject = m.group(2)
+                    else:
+                        subject = val
             
             if period == "학사일정":
                 bg = t.get('acad_cell_bg', t['lunch_bg'])
@@ -475,13 +452,16 @@ def display_dashboard():
                 fg = default_fg
                 deco = "line-through" if is_strike else "none"
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
+                elif custom_color: fg = custom_color # 커스텀 색상 적용!
             else:
                 bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']
                 fg = t['cell_fg']
                 deco = "line-through" if is_strike else "none"
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
+                elif custom_color: fg = custom_color # 커스텀 색상 적용!
                 elif is_custom: fg = "#e74c3c"
             
+            # 💡 [핵심] 텍스트 크기 자동 조절 (PC버전과 동일)
             font_sz_str = "14px"
             line_height = "1.2"
             
@@ -491,6 +471,7 @@ def display_dashboard():
                     lines = subject.split('\n')
                     num_lines = len(lines)
                     max_len = max([len(l) for l in lines] if lines else [0])
+                    # 순수 텍스트만 계산해야 정확히 줄어듦
                     if num_lines >= 4 or max_len > 9: font_sz = 9
                     elif num_lines >= 3 or max_len > 6: font_sz = 10
                 font_sz_str = f"{font_sz}px"
