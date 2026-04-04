@@ -487,10 +487,17 @@ def display_dashboard():
     if st.session_state.show_memo:
         html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div class='memo-container'>")
         if memos_list:
-            for i, m in enumerate(memos_list): m['display_num'] = len(memos_list) - i
-            active_memos = [m for m in memos_list if not m.get('is_strike', False)]
-            completed_memos = [m for m in memos_list if m.get('is_strike', False)]
-            sorted_memos = active_memos + completed_memos
+            # --- 수정된 정렬 및 번호 부여 로직 시작 ---
+            memos_list.sort(key=lambda m: (
+                m.get('is_strike', False),        # False(0)가 True(1)보다 앞에 옴
+                not m.get('is_important', False)  # 중요(True)를 False로 반전시켜 0으로 만들어 앞에 오게 함
+            ))
+
+            for i, m in enumerate(memos_list): 
+                m['display_num'] = len(memos_list) - i
+
+            sorted_memos = memos_list
+            # --- 수정된 정렬 및 번호 부여 로직 끝 ---
 
             for m in sorted_memos:
                 num = m['display_num']
