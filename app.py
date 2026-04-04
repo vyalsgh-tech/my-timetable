@@ -7,6 +7,8 @@ import inspect
 import threading
 import re
 import unicodedata
+import io
+import glob
 from datetime import datetime, timedelta, timezone
 
 # 1. 페이지 설정
@@ -127,79 +129,80 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 [디버깅 최종] 멀티라인 붕괴 현상을 해결하고 PC버전과 완전히 동일하게 스캔하는 로직
+# 💡 [핵심] 완벽한 클라우드 파일 추적기 + 엑셀 멀티라인 무손실 파서 + 지능형 열 탐색 알고리즘
 def load_academic_data():
     academic_schedule = {}
     target_file = None
     
-    # 1. 파일 찾기 (공백 무시 및 NFC 정규화로 확실하게 추적)
-    search_dirs = [os.path.dirname(os.path.abspath(__file__)), '.', os.getcwd()]
-    for d in search_dirs:
-        if os.path.exists(d):
-            for f in os.listdir(d):
-                clean_f = unicodedata.normalize('NFC', f).replace(" ", "")
-                # 선생님의 말씀대로 .csv 파일을 명확히 타겟팅
-                if "학사일정" in clean_f and clean_f.endswith(".csv") and "수업일수" not in clean_f:
-                    target_file = os.path.join(d, f)
-                    break
-        if target_file: break
+    # 1. 파일 찾기 (전체 폴더를 샅샅이 뒤져 무조건 찾아냄)
+    for filepath in glob.glob("**/*학사일정*.csv", recursive=True):
+        if "수업일수" not in filepath:
+            target_file = filepath
+            break
 
     if not target_file or not os.path.exists(target_file): return {}
     
     reader = None
-    # 2. 엑셀의 멀티라인(Alt+Enter) 구조를 100% 보존하기 위해 파일 객체(f)를 그대로 csv.reader에 넘김
+    # 2. 인코딩 스캔 및 엑셀 Alt+Enter 구조 완벽 보존 (io.StringIO 활용)
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
             with open(target_file, 'r', encoding=enc) as f:
-                temp_reader = list(csv.reader(f))
-                if temp_reader and len(temp_reader) > 0:
-                    header_str = "".join(temp_reader[0])
-                    # 한글 문자가 깨지지 않았는지 확실히 검증
-                    if "월" in header_str or "일" in header_str:
-                        reader = temp_reader
-                        break
+                content = f.read()
+                # 한글 정상 해독 여부 확인
+                if "월" in content or "일" in content or "학" in content:
+                    reader = list(csv.reader(io.StringIO(content)))
+                    break
         except: pass
-        
-    # 만약 위 인코딩이 전부 실패했다면 강제로 에러를 덮어쓰고라도 읽기 시도
-    if not reader:
-        try:
-            with open(target_file, 'r', encoding='utf-8-sig', errors='replace') as f:
-                reader = list(csv.reader(f))
-        except: return {}
 
     if not reader: return {}
     
-    # 3. PC버전의 핵심 로직 100% 이식 파싱
+    # 3. 지능형 하이브리드 데이터 추출
     try:
-        header = reader[0]
+        # 헤더(N월)가 존재하는 정확한 줄 찾기
+        header_row_idx = 0
+        for i, row in enumerate(reader):
+            if any("월" in str(cell) for cell in row):
+                header_row_idx = i
+                break
+                
+        header = reader[header_row_idx]
         month_cols = {}
         for col_idx, val in enumerate(header):
-            m = re.search(r'(\d+)\s*월', str(val).strip())
-            if m:
-                month = int(m.group(1))
-                # PC 버전의 완벽한 달력 포맷 지정 (col_idx + 1)
-                if month not in month_cols: month_cols[month] = col_idx + 1
+            m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
+            if m: month_cols[int(m.group(1))] = col_idx
         
-        for row in reader[1:]:
-            if not row or not str(row[0]).strip().isdigit(): continue
-            day = int(str(row[0]).strip())
+        days_of_week = ['월', '화', '수', '목', '금', '토', '일']
+        
+        for row in reader[header_row_idx + 1:]:
+            if not row: continue
             
-            for month, ev_col in month_cols.items():
-                if ev_col < len(row):
-                    event = str(row[ev_col]).strip()
-                    if event:
-                        year = 2026 if month >= 3 else 2027
-                        date_str = f"{year}-{month:02d}-{day:02d}"
-                        if date_str in academic_schedule:
-                            academic_schedule[date_str] += f"\n{event}"
-                        else:
-                            academic_schedule[date_str] = event
+            # 첫 번째 칸에서 무조건 일(Day) 숫자만 추출
+            day_match = re.search(r'^(\d+)', str(row[0]).strip())
+            if not day_match: continue
+            day = int(day_match.group(1))
+            
+            for month, col_idx in month_cols.items():
+                event = ""
+                # 해당 월 칸부터 오른쪽 3칸까지 스캔하여 '요일'이 아닌 진짜 행사 내용 색출!
+                for check_col in [col_idx, col_idx + 1, col_idx + 2]:
+                    if check_col < len(row):
+                        val = str(row[check_col]).strip()
+                        if val and val not in days_of_week and not val.isdigit():
+                            event = val
+                            break 
+                
+                if event:
+                    year = 2026 if month >= 3 else 2027
+                    date_str = f"{year}-{month:02d}-{day:02d}"
+                    if date_str in academic_schedule:
+                        academic_schedule[date_str] += f"\n{event}"
+                    else:
+                        academic_schedule[date_str] = event
     except: pass
     return academic_schedule
 
 teachers_data = load_csv()
-# 캐시 삭제로 항상 깃허브 최신본 반영
-academic_data = load_academic_data() 
+academic_data = load_academic_data() # 캐시 완전 삭제, 항상 최신본 반영
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
