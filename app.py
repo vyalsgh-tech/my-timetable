@@ -8,7 +8,6 @@ import threading
 import re
 import unicodedata
 import io
-import glob
 from datetime import datetime, timedelta, timezone
 
 # 1. 페이지 설정
@@ -129,80 +128,94 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 [핵심] 완벽한 클라우드 파일 추적기 + 엑셀 멀티라인 무손실 파서 + 지능형 열 탐색 알고리즘
+# 💡 [필살기] 자동 디버거가 탑재된 무적의 학사일정 파서
 def load_academic_data():
     academic_schedule = {}
     target_file = None
     
-    # 1. 파일 찾기 (전체 폴더를 샅샅이 뒤져 무조건 찾아냄)
-    for filepath in glob.glob("**/*학사일정*.csv", recursive=True):
-        if "수업일수" not in filepath:
-            target_file = filepath
-            break
+    # 1. 파일 찾기 (전체 폴더 샅샅이 스캔)
+    for root_dir, dirs, files in os.walk('.'):
+        for f in files:
+            clean_f = unicodedata.normalize('NFC', f).replace(" ", "")
+            if "학사일정" in clean_f and clean_f.endswith(".csv") and "수업일수" not in clean_f:
+                target_file = os.path.join(root_dir, f)
+                break
+        if target_file: break
 
-    if not target_file or not os.path.exists(target_file): return {}
-    
+    # 🚨 파일이 아예 없으면 화면에 표시
+    if not target_file or not os.path.exists(target_file):
+        academic_schedule['2026-03-30'] = "파일없음\n오류"
+        return academic_schedule
+
+    # 2. 인코딩 스캔 및 CSV 파싱 (엑셀 Alt+Enter 구조 보존)
     reader = None
-    # 2. 인코딩 스캔 및 엑셀 Alt+Enter 구조 완벽 보존 (io.StringIO 활용)
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
             with open(target_file, 'r', encoding=enc) as f:
                 content = f.read()
-                # 한글 정상 해독 여부 확인
-                if "월" in content or "일" in content or "학" in content:
+                if "월" in content or "일" in content:  # 한글 해독 성공 여부
                     reader = list(csv.reader(io.StringIO(content)))
                     break
         except: pass
 
-    if not reader: return {}
+    # 🚨 인코딩 실패 시 화면에 표시
+    if not reader:
+        academic_schedule['2026-03-30'] = "인코딩\n오류"
+        return academic_schedule
     
-    # 3. 지능형 하이브리드 데이터 추출
+    # 3. 지능형 파싱 (헤더 동적 스캔)
     try:
-        # 헤더(N월)가 존재하는 정확한 줄 찾기
-        header_row_idx = 0
+        header_row_idx = -1
+        month_cols = {}
+        
+        # '월' 글자가 들어있는 진짜 헤더 줄 찾기
         for i, row in enumerate(reader):
-            if any("월" in str(cell) for cell in row):
+            temp_cols = {}
+            for col_idx, val in enumerate(row):
+                m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
+                if m: temp_cols[int(m.group(1))] = col_idx + 1 # PC버전 로직 (우측 칸 추출)
+            if temp_cols:
+                month_cols = temp_cols
                 header_row_idx = i
                 break
                 
-        header = reader[header_row_idx]
-        month_cols = {}
-        for col_idx, val in enumerate(header):
-            m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
-            if m: month_cols[int(m.group(1))] = col_idx
-        
-        days_of_week = ['월', '화', '수', '목', '금', '토', '일']
-        
+        # 🚨 헤더(3월, 4월)를 못 찾았으면 화면에 표시
+        if header_row_idx == -1:
+            academic_schedule['2026-03-30'] = "헤더탐색\n실패"
+            return academic_schedule
+
+        parsed_count = 0
         for row in reader[header_row_idx + 1:]:
             if not row: continue
             
-            # 첫 번째 칸에서 무조건 일(Day) 숫자만 추출
+            # 첫 번째 칸에서 숫자(일)만 추출
             day_match = re.search(r'^(\d+)', str(row[0]).strip())
             if not day_match: continue
             day = int(day_match.group(1))
             
-            for month, col_idx in month_cols.items():
-                event = ""
-                # 해당 월 칸부터 오른쪽 3칸까지 스캔하여 '요일'이 아닌 진짜 행사 내용 색출!
-                for check_col in [col_idx, col_idx + 1, col_idx + 2]:
-                    if check_col < len(row):
-                        val = str(row[check_col]).strip()
-                        if val and val not in days_of_week and not val.isdigit():
-                            event = val
-                            break 
-                
-                if event:
-                    year = 2026 if month >= 3 else 2027
-                    date_str = f"{year}-{month:02d}-{day:02d}"
-                    if date_str in academic_schedule:
-                        academic_schedule[date_str] += f"\n{event}"
-                    else:
-                        academic_schedule[date_str] = event
-    except: pass
+            for month, ev_col in month_cols.items():
+                if ev_col < len(row):
+                    event = str(row[ev_col]).strip()
+                    if event:
+                        year = 2026 if month >= 3 else 2027
+                        date_str = f"{year}-{month:02d}-{day:02d}"
+                        if date_str in academic_schedule:
+                            academic_schedule[date_str] += f"\n{event}"
+                        else:
+                            academic_schedule[date_str] = event
+                        parsed_count += 1
+                        
+        # 🚨 데이터가 0건 추출되었으면 화면에 표시
+        if parsed_count == 0:
+            academic_schedule['2026-03-30'] = "데이터\n추출 0건"
+
+    except Exception as e:
+        academic_schedule['2026-03-30'] = "파싱\n에러"
+        
     return academic_schedule
 
 teachers_data = load_csv()
-academic_data = load_academic_data() # 캐시 완전 삭제, 항상 최신본 반영
+academic_data = load_academic_data() # 캐시 완전 삭제, 항상 최신 파싱
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
