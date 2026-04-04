@@ -8,6 +8,7 @@ import threading
 import re
 import unicodedata
 import io
+import glob
 from datetime import datetime, timedelta, timezone
 
 # 1. 페이지 설정
@@ -128,12 +129,12 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 [필살기] 자동 디버거가 탑재된 무적의 학사일정 파서
+# 💡 [버그 완전 해결] 원본 CSV 구조를 100% 반영한 무적의 학사일정 파서
 def load_academic_data():
     academic_schedule = {}
     target_file = None
     
-    # 1. 파일 찾기 (전체 폴더 샅샅이 스캔)
+    # 1. 파일 찾기
     for root_dir, dirs, files in os.walk('.'):
         for f in files:
             clean_f = unicodedata.normalize('NFC', f).replace(" ", "")
@@ -142,61 +143,75 @@ def load_academic_data():
                 break
         if target_file: break
 
-    # 🚨 파일이 아예 없으면 화면에 표시
     if not target_file or not os.path.exists(target_file):
         academic_schedule['2026-03-30'] = "파일없음\n오류"
         return academic_schedule
 
-    # 2. 인코딩 스캔 및 CSV 파싱 (엑셀 Alt+Enter 구조 보존)
-    reader = None
+    # 2. 강력한 바이너리 리더 (인코딩 깨짐 + NUL 바이트 원천 차단)
+    try:
+        with open(target_file, 'rb') as f:
+            raw_bytes = f.read()
+    except Exception as e:
+        academic_schedule['2026-03-30'] = f"파일읽기\n실패"
+        return academic_schedule
+
+    content = ""
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
-            with open(target_file, 'r', encoding=enc) as f:
-                content = f.read()
-                if "월" in content or "일" in content:  # 한글 해독 성공 여부
-                    reader = list(csv.reader(io.StringIO(content)))
-                    break
+            temp = raw_bytes.decode(enc)
+            if "월" in temp or "일" in temp:
+                content = temp
+                break
         except: pass
-
-    # 🚨 인코딩 실패 시 화면에 표시
+        
+    if not content: content = raw_bytes.decode('utf-8', errors='replace')
+    content = content.replace('\x00', '') # 악성 NUL 바이트 제거
+    
+    reader = list(csv.reader(io.StringIO(content)))
     if not reader:
-        academic_schedule['2026-03-30'] = "인코딩\n오류"
+        academic_schedule['2026-03-30'] = "CSV인식\n실패"
         return academic_schedule
     
-    # 3. 지능형 파싱 (헤더 동적 스캔)
+    # 3. 선생님의 원본 데이터에 맞춘 완벽한 파싱 로직
     try:
         header_row_idx = -1
-        month_cols = {}
+        month_event_cols = {}
+        seen_months = set()
         
         # '월' 글자가 들어있는 진짜 헤더 줄 찾기
         for i, row in enumerate(reader):
-            temp_cols = {}
             for col_idx, val in enumerate(row):
                 m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
-                if m: temp_cols[int(m.group(1))] = col_idx + 1 # PC버전 로직 (우측 칸 추출)
-            if temp_cols:
-                month_cols = temp_cols
+                if m:
+                    month = int(m.group(1))
+                    # 처음 등장한 'N월'의 우측 칸이 바로 '행사' 칸! (PC버전 로직 100% 이식)
+                    if month not in seen_months:
+                        seen_months.add(month)
+                        month_event_cols[month] = col_idx + 1
+            if seen_months:
                 header_row_idx = i
                 break
                 
-        # 🚨 헤더(3월, 4월)를 못 찾았으면 화면에 표시
         if header_row_idx == -1:
             academic_schedule['2026-03-30'] = "헤더탐색\n실패"
             return academic_schedule
 
+        # 💡 [핵심] 이번 버그의 원인이었던 days_of_week 변수 정상 선언!
+        days_of_week = ['월', '화', '수', '목', '금', '토', '일']
         parsed_count = 0
+        
         for row in reader[header_row_idx + 1:]:
             if not row: continue
             
-            # 첫 번째 칸에서 숫자(일)만 추출
             day_match = re.search(r'^(\d+)', str(row[0]).strip())
             if not day_match: continue
             day = int(day_match.group(1))
             
-            for month, ev_col in month_cols.items():
+            for month, ev_col in month_event_cols.items():
                 if ev_col < len(row):
                     event = str(row[ev_col]).strip()
-                    if event:
+                    # 요일이나 빈칸이 아닌 진짜 행사 텍스트만 저장
+                    if event and event not in days_of_week and not event.isdigit():
                         year = 2026 if month >= 3 else 2027
                         date_str = f"{year}-{month:02d}-{day:02d}"
                         if date_str in academic_schedule:
@@ -205,7 +220,6 @@ def load_academic_data():
                             academic_schedule[date_str] = event
                         parsed_count += 1
                         
-        # 🚨 데이터가 0건 추출되었으면 화면에 표시
         if parsed_count == 0:
             academic_schedule['2026-03-30'] = "데이터\n추출 0건"
 
@@ -215,7 +229,7 @@ def load_academic_data():
     return academic_schedule
 
 teachers_data = load_csv()
-academic_data = load_academic_data() # 캐시 완전 삭제, 항상 최신 파싱
+academic_data = load_academic_data() # 캐시 삭제 완료
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
