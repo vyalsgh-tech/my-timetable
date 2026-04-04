@@ -42,7 +42,6 @@ if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
 
-# PC버전 전용 색상 포함 테마
 themes = [
     { 'name': '모던 다크', 'bg': '#2c3e50', 'top': '#1a252f', 'grid': '#34495e', 'head_bg': '#2c3e50', 'head_fg': 'white', 'per_bg': '#7f8c8d', 'per_fg': 'white', 'cell_bg': '#ecf0f1', 'lunch_bg': '#95a5a6', 'cell_fg': '#2c3e50', 'hl_per': '#e74c3c', 'hl_cell': '#f1c40f', 'text': '#ffffff',
       'acad_per_bg': '#8e44ad', 'acad_per_fg': 'white', 'acad_cell_bg': '#413a52', 'acad_cell_fg': '#f1c40f' },
@@ -130,42 +129,51 @@ def load_csv():
 @st.cache_data
 def load_academic_data():
     academic_schedule = {}
-    base_dir = os.path.dirname(os.path.abspath(__file__))
     target_file = None
     
-    # 💡 웹 서버 환경에서도 절대 튕기지 않는 절대 경로 탐색 로직 (핵심 수정사항)
-    search_dirs = [base_dir, '.']
-    for d in search_dirs:
-        if os.path.exists(d):
-            for f in os.listdir(d):
-                if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
-                    target_file = os.path.join(d, f)
-                    break
+    # 💡 클라우드 서버 폴더 깊숙이 있는 파일까지 완벽 탐색
+    for root_dir, _, files in os.walk('.'):
+        for f in files:
+            if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
+                target_file = os.path.join(root_dir, f)
+                break
         if target_file: break
 
     if not target_file or not os.path.exists(target_file): return {}
     
+    reader = None
+    # 💡 [핵심] 클라우드(Linux) 환경에서 Excel 저장 파일(CP949) 한글 깨짐 원천 차단
     try:
-        with open(target_file, 'r', encoding='utf-8-sig', errors='replace') as f:
+        with open(target_file, 'r', encoding='utf-8-sig') as f:
             reader = list(csv.reader(f))
-            if not reader: return {}
-            header = reader[0]
-            month_cols = {}
-            for col_idx, val in enumerate(header):
-                # 💡 안전한 정규식으로 띄어쓰기 등 다양한 형식에도 유연하게 대처
-                m = re.search(r'(\d+)\s*월', val.strip())
-                if m:
-                    month = int(m.group(1))
-                    if month not in month_cols: month_cols[month] = col_idx + 1
-            for row in reader[1:]:
-                if not row or not row[0].strip().isdigit(): continue
-                day = int(row[0].strip())
-                for month, ev_col in month_cols.items():
-                    if ev_col < len(row):
-                        event = row[ev_col].strip()
-                        if event:
-                            year = 2026 if month >= 3 else 2027
-                            date_str = f"{year}-{month:02d}-{day:02d}"
+    except UnicodeDecodeError:
+        try:
+            with open(target_file, 'r', encoding='cp949', errors='replace') as f:
+                reader = list(csv.reader(f))
+        except: pass
+
+    if not reader: return {}
+    
+    try:
+        header = reader[0]
+        month_cols = {}
+        for col_idx, val in enumerate(header):
+            m = re.search(r'(\d+)\s*월', val.strip())
+            if m:
+                month = int(m.group(1))
+                if month not in month_cols: month_cols[month] = col_idx + 1
+        for row in reader[1:]:
+            if not row or not row[0].strip().isdigit(): continue
+            day = int(row[0].strip())
+            for month, ev_col in month_cols.items():
+                if ev_col < len(row):
+                    event = row[ev_col].strip()
+                    if event:
+                        year = 2026 if month >= 3 else 2027
+                        date_str = f"{year}-{month:02d}-{day:02d}"
+                        if date_str in academic_schedule:
+                            academic_schedule[date_str] += f"\n{event}"
+                        else:
                             academic_schedule[date_str] = event
     except: pass
     return academic_schedule
@@ -400,7 +408,7 @@ def display_dashboard():
             
             subject = ""
             if period == "학사일정":
-                subject = academic_data.get(date_str, "").replace(' / ', '<br>')
+                subject = academic_data.get(date_str, "").replace(' / ', '\n')
             elif period != "점심" and period != "조회":
                 s_idx = row_num - 3 if row_num < 7 else row_num - 4
                 if s_idx >= 0 and s_idx < len(base_schedule.get(day, [])): subject = base_schedule[day][s_idx]
@@ -424,14 +432,30 @@ def display_dashboard():
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
                 elif is_custom: fg = "#e74c3c"
             
+            # 💡 [핵심] PC버전의 동적 폰트 조절 및 자동 줄바꿈 로직 완벽 이식
+            font_sz_str = "14px"
+            line_height = "1.2"
+            
+            if period == "학사일정" and subject:
+                lines = subject.split('\n')
+                num_lines = len(lines)
+                max_len = max([len(l) for l in lines] if lines else [0])
+                
+                font_sz = 12
+                if num_lines >= 4 or max_len > 9: font_sz = 9
+                elif num_lines >= 3 or max_len > 6: font_sz = 10
+                    
+                font_sz_str = f"{font_sz}px"
+                line_height = "1.1"
+
             display = subject.replace('\n', '<br>') if subject else ""
             td_cell_class = ""
             if period != "학사일정":
                 if is_current_week and col == today_idx and row_idx == active_row: td_cell_class = "hl-fill-yellow"
                 elif is_current_week and col == today_idx and row_idx == preview_row: td_cell_class = "hl-border-yellow"
             
-            font_sz = "12px" if period == "학사일정" else "14px"
-            html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:1.2;'>{display}</div></td>")
+            # word-break:break-word 와 white-space:normal 을 추가하여 너비 초과 시 자연스럽게 줄이 바뀜
+            html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz_str}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:{line_height}; word-break:break-word; white-space:normal; padding:2px;'>{display}</div></td>")
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
