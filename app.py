@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 1-1. PWA(웹앱) 전체화면 모드 강제 주입 (주소창 숨기기)
+# 💡 1-1. PWA(웹앱) 전체화면 모드 강제 주입
 components.html("""
 <script>
     const doc = window.parent.document;
@@ -131,26 +131,26 @@ def load_academic_data():
     academic_schedule = {}
     target_file = None
     
-    # 💡 클라우드 서버 폴더 깊숙이 있는 파일까지 완벽 탐색
-    for root_dir, _, files in os.walk('.'):
-        for f in files:
-            if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
-                target_file = os.path.join(root_dir, f)
-                break
+    # 서버 환경 대응 다중 경로 탐색
+    for d in [os.path.dirname(os.path.abspath(__file__)), '.']:
+        if os.path.exists(d):
+            for f in os.listdir(d):
+                if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
+                    target_file = os.path.join(d, f)
+                    break
         if target_file: break
 
     if not target_file or not os.path.exists(target_file): return {}
     
     reader = None
-    # 💡 [핵심] 클라우드(Linux) 환경에서 Excel 저장 파일(CP949) 한글 깨짐 원천 차단
-    try:
-        with open(target_file, 'r', encoding='utf-8-sig') as f:
-            reader = list(csv.reader(f))
-    except UnicodeDecodeError:
+    # 💡 초강력 이중 인코딩 디코딩 (서버 글자 깨짐 완전 방지)
+    for enc in ['utf-8-sig', 'cp949', 'utf-8', 'euc-kr']:
         try:
-            with open(target_file, 'r', encoding='cp949', errors='replace') as f:
-                reader = list(csv.reader(f))
-        except: pass
+            with open(target_file, 'r', encoding=enc) as f:
+                content = f.read()
+                reader = list(csv.reader(content.splitlines()))
+                if reader and len(reader) > 0: break
+        except: continue
 
     if not reader: return {}
     
@@ -158,10 +158,13 @@ def load_academic_data():
         header = reader[0]
         month_cols = {}
         for col_idx, val in enumerate(header):
-            m = re.search(r'(\d+)\s*월', val.strip())
+            clean_val = val.strip().replace(" ", "")
+            m = re.match(r'(\d+)월', clean_val)
             if m:
                 month = int(m.group(1))
+                # PC버전과 완전히 동일한 col_idx + 1 로직 적용
                 if month not in month_cols: month_cols[month] = col_idx + 1
+        
         for row in reader[1:]:
             if not row or not row[0].strip().isdigit(): continue
             day = int(row[0].strip())
@@ -432,19 +435,18 @@ def display_dashboard():
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
                 elif is_custom: fg = "#e74c3c"
             
-            # 💡 [핵심] PC버전의 동적 폰트 조절 및 자동 줄바꿈 로직 완벽 이식
+            # 💡 [핵심] 텍스트 크기와 줄바꿈 자동 조절
             font_sz_str = "14px"
             line_height = "1.2"
             
-            if period == "학사일정" and subject:
-                lines = subject.split('\n')
-                num_lines = len(lines)
-                max_len = max([len(l) for l in lines] if lines else [0])
-                
+            if period == "학사일정":
                 font_sz = 12
-                if num_lines >= 4 or max_len > 9: font_sz = 9
-                elif num_lines >= 3 or max_len > 6: font_sz = 10
-                    
+                if subject:
+                    lines = subject.split('\n')
+                    num_lines = len(lines)
+                    max_len = max([len(l) for l in lines] if lines else [0])
+                    if num_lines >= 4 or max_len > 9: font_sz = 9
+                    elif num_lines >= 3 or max_len > 6: font_sz = 10
                 font_sz_str = f"{font_sz}px"
                 line_height = "1.1"
 
@@ -454,8 +456,7 @@ def display_dashboard():
                 if is_current_week and col == today_idx and row_idx == active_row: td_cell_class = "hl-fill-yellow"
                 elif is_current_week and col == today_idx and row_idx == preview_row: td_cell_class = "hl-border-yellow"
             
-            # word-break:break-word 와 white-space:normal 을 추가하여 너비 초과 시 자연스럽게 줄이 바뀜
-            html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz_str}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:{line_height}; word-break:break-word; white-space:normal; padding:2px;'>{display}</div></td>")
+            html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz_str}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:{line_height}; word-break:keep-all; overflow-wrap:break-word; white-space:normal; padding:2px;'>{display}</div></td>")
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
