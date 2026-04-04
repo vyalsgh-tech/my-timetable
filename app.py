@@ -6,6 +6,7 @@ import os
 import inspect
 import threading
 import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 # 1. 페이지 설정
@@ -126,16 +127,18 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 [핵심] 캐시를 삭제하고 무조건 실시간으로 읽도록 강제 변경
+# 💡 [클라우드 완벽 패치] 깃허브 자소분리 방어 및 인코딩 스마트 탐지 적용
 def load_academic_data():
     academic_schedule = {}
     target_file = None
     
-    # 서버 환경 대응 다중 경로 탐색 (현재 폴더 및 파이썬 실행 폴더 샅샅이 뒤지기)
-    for d in [os.path.dirname(os.path.abspath(__file__)), '.', os.getcwd()]:
+    # 1. 깃허브(Mac) 한글 자소분리(NFD) 현상을 극복하기 위한 파일 탐색 (NFC 강제 조립)
+    search_dirs = [os.path.dirname(os.path.abspath(__file__)), '.', os.getcwd()]
+    for d in search_dirs:
         if os.path.exists(d):
             for f in os.listdir(d):
-                if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
+                norm_f = unicodedata.normalize('NFC', f)
+                if "학사일정" in norm_f and norm_f.endswith(".csv") and "수업일수" not in norm_f:
                     target_file = os.path.join(d, f)
                     break
         if target_file: break
@@ -143,14 +146,17 @@ def load_academic_data():
     if not target_file or not os.path.exists(target_file): return {}
     
     reader = None
-    # 💡 Linux 줄바꿈 붕괴 방지를 위해 splitlines() 적용 + 에러 무시 디코딩
-    for enc in ['utf-8-sig', 'cp949', 'utf-8', 'euc-kr']:
+    # 2. 리눅스 서버 글자 깨짐 방지를 위한 다중 인코딩 스캐너 (에러 시 다음 인코딩으로 즉각 전환)
+    for enc in ['utf-8-sig', 'utf-8', 'cp949', 'euc-kr']:
         try:
-            with open(target_file, 'r', encoding=enc, errors='replace') as f:
+            with open(target_file, 'r', encoding=enc) as f:
                 content = f.read()
-                reader = list(csv.reader(content.splitlines()))
-                if reader and len(reader) > 0: break
-        except: continue
+                # 한글이 안 깨지고 잘 읽혔는지 검증하는 방어 로직
+                if "월" in content or "일" in content or "학" in content:
+                    reader = list(csv.reader(content.splitlines()))
+                    break
+        except Exception: 
+            continue
 
     if not reader: return {}
     
@@ -162,11 +168,12 @@ def load_academic_data():
             m = re.search(r'(\d+)월', clean_val)
             if m:
                 month = int(m.group(1))
+                # PC 버전의 완벽한 달력 포맷(요일+행사 분리형) 지원 로직 그대로 적용
                 if month not in month_cols: month_cols[month] = col_idx + 1
         
         for row in reader[1:]:
             if not row: continue
-            # 💡 [핵심] 숫자로 시작하는 날짜만 악착같이 뽑아내는 정규식 적용
+            # 첫 번째 칸에 쓰레기 문자가 있어도 숫자만 악착같이 뽑아냄
             day_match = re.search(r'^(\d+)', row[0].strip())
             if not day_match: continue
             day = int(day_match.group(1))
@@ -185,7 +192,7 @@ def load_academic_data():
     return academic_schedule
 
 teachers_data = load_csv()
-academic_data = load_academic_data() # 💡 접속시마다 새로 파싱
+academic_data = load_academic_data() # 캐시를 쓰지 않고 항상 최신 데이터를 읽어옴
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
