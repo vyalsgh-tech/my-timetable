@@ -126,13 +126,13 @@ def load_csv():
         except: pass
     return t_data
 
-@st.cache_data
+# 💡 [핵심] 캐시를 삭제하고 무조건 실시간으로 읽도록 강제 변경
 def load_academic_data():
     academic_schedule = {}
     target_file = None
     
-    # 서버 환경 대응 다중 경로 탐색
-    for d in [os.path.dirname(os.path.abspath(__file__)), '.']:
+    # 서버 환경 대응 다중 경로 탐색 (현재 폴더 및 파이썬 실행 폴더 샅샅이 뒤지기)
+    for d in [os.path.dirname(os.path.abspath(__file__)), '.', os.getcwd()]:
         if os.path.exists(d):
             for f in os.listdir(d):
                 if "학사일정" in f and f.endswith(".csv") and "수업일수" not in f:
@@ -143,10 +143,10 @@ def load_academic_data():
     if not target_file or not os.path.exists(target_file): return {}
     
     reader = None
-    # 💡 초강력 이중 인코딩 디코딩 (서버 글자 깨짐 완전 방지)
+    # 💡 Linux 줄바꿈 붕괴 방지를 위해 splitlines() 적용 + 에러 무시 디코딩
     for enc in ['utf-8-sig', 'cp949', 'utf-8', 'euc-kr']:
         try:
-            with open(target_file, 'r', encoding=enc) as f:
+            with open(target_file, 'r', encoding=enc, errors='replace') as f:
                 content = f.read()
                 reader = list(csv.reader(content.splitlines()))
                 if reader and len(reader) > 0: break
@@ -159,15 +159,18 @@ def load_academic_data():
         month_cols = {}
         for col_idx, val in enumerate(header):
             clean_val = val.strip().replace(" ", "")
-            m = re.match(r'(\d+)월', clean_val)
+            m = re.search(r'(\d+)월', clean_val)
             if m:
                 month = int(m.group(1))
-                # PC버전과 완전히 동일한 col_idx + 1 로직 적용
                 if month not in month_cols: month_cols[month] = col_idx + 1
         
         for row in reader[1:]:
-            if not row or not row[0].strip().isdigit(): continue
-            day = int(row[0].strip())
+            if not row: continue
+            # 💡 [핵심] 숫자로 시작하는 날짜만 악착같이 뽑아내는 정규식 적용
+            day_match = re.search(r'^(\d+)', row[0].strip())
+            if not day_match: continue
+            day = int(day_match.group(1))
+            
             for month, ev_col in month_cols.items():
                 if ev_col < len(row):
                     event = row[ev_col].strip()
@@ -182,7 +185,7 @@ def load_academic_data():
     return academic_schedule
 
 teachers_data = load_csv()
-academic_data = load_academic_data()
+academic_data = load_academic_data() # 💡 접속시마다 새로 파싱
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
@@ -435,7 +438,6 @@ def display_dashboard():
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
                 elif is_custom: fg = "#e74c3c"
             
-            # 💡 [핵심] 텍스트 크기와 줄바꿈 자동 조절
             font_sz_str = "14px"
             line_height = "1.2"
             
