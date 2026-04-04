@@ -33,15 +33,15 @@ if "user" in params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = params["user"]
 if "t" in params:
     st.session_state.teacher = params["t"]
-if "w" in params:
-    st.session_state.week_offset = int(params["w"])
 
 if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = None
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
 if 'show_extra' not in st.session_state: st.session_state.show_extra = False
 if 'show_memo' not in st.session_state: st.session_state.show_memo = True 
-if 'teacher' not in st.session_state: st.session_state.teacher = "표민호"
+# 💡 [버그 해결] 강제로 '표민호'로 덮어씌워지던 로직을 로그인된 유저 우선으로 변경
+if 'teacher' not in st.session_state: 
+    st.session_state.teacher = st.session_state.logged_in_user if st.session_state.logged_in_user else "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
 
@@ -98,6 +98,7 @@ if st.session_state.logged_in_user is None:
                         st.session_state.logged_in_user = login_id
                         st.session_state.teacher = login_id
                         st.query_params["user"] = login_id 
+                        st.query_params["t"] = login_id # 로그인 시 명시적으로 teacher 파라미터도 동기화
                         st.rerun()
                     else: st.error("비밀번호가 일치하지 않습니다.")
                 else: st.error("등록되지 않은 선생님입니다.")
@@ -343,7 +344,7 @@ def display_dashboard():
                 st.session_state.font_name = new_font; st.rerun()
             st.markdown("---")
             if st.button("🔓 로그아웃", type="primary", use_container_width=True):
-                st.session_state.logged_in_user = None; st.query_params.clear(); st.rerun()
+                st.session_state.logged_in_user = None; st.session_state.teacher = "표민호"; st.query_params.clear(); st.rerun()
             if st.session_state.logged_in_user == "표민호":
                 st.markdown("<div style='font-size:12px; font-weight:bold; margin-top:10px;'>👨‍🏫 [관리자] 비번 1234 초기화</div>", unsafe_allow_html=True)
                 try:
@@ -428,7 +429,6 @@ def display_dashboard():
                 s_idx = row_num - 3 if row_num < 7 else row_num - 4
                 if s_idx >= 0 and s_idx < len(base_schedule.get(day, [])): subject = base_schedule[day][s_idx]
             
-            # 💡 [핵심] 모바일 환경에서의 PC 색상 태그 완벽 연동 (정규식 파싱)
             is_strike, is_custom = False, False
             custom_color = None
             
@@ -438,7 +438,6 @@ def display_dashboard():
                     is_strike, is_custom = True, True
                 else: 
                     is_custom = True
-                    # 정규식으로 HTML 색상 태그 추출! (PC와 완벽 동기화)
                     m = re.match(r'^<span style=[\'"]color:([^"\']+)[\'"]>(.*)</span>$', val, re.DOTALL | re.IGNORECASE)
                     if m:
                         custom_color = m.group(1)
@@ -452,16 +451,15 @@ def display_dashboard():
                 fg = default_fg
                 deco = "line-through" if is_strike else "none"
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
-                elif custom_color: fg = custom_color # 커스텀 색상 적용!
+                elif custom_color: fg = custom_color
             else:
                 bg = t['lunch_bg'] if period in ["조회", "점심"] else t['cell_bg']
                 fg = t['cell_fg']
                 deco = "line-through" if is_strike else "none"
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
-                elif custom_color: fg = custom_color # 커스텀 색상 적용!
+                elif custom_color: fg = custom_color
                 elif is_custom: fg = "#e74c3c"
             
-            # 💡 [핵심] 텍스트 크기 자동 조절 (PC버전과 동일)
             font_sz_str = "14px"
             line_height = "1.2"
             
@@ -471,7 +469,6 @@ def display_dashboard():
                     lines = subject.split('\n')
                     num_lines = len(lines)
                     max_len = max([len(l) for l in lines] if lines else [0])
-                    # 순수 텍스트만 계산해야 정확히 줄어듦
                     if num_lines >= 4 or max_len > 9: font_sz = 9
                     elif num_lines >= 3 or max_len > 6: font_sz = 10
                 font_sz_str = f"{font_sz}px"
