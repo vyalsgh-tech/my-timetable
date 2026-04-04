@@ -127,52 +127,62 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 [핵심] 멀티라인(Alt+Enter) 구조 파괴 방지 및 스마트 인코딩 적용
+# 💡 [디버깅 최종] 멀티라인 붕괴 현상을 해결하고 PC버전과 완전히 동일하게 스캔하는 로직
 def load_academic_data():
     academic_schedule = {}
     target_file = None
-    base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 1. 파일 찾기 (깃허브 NFD 깨짐 방어)
-    for f in os.listdir(base_dir):
-        norm_f = unicodedata.normalize('NFC', f)
-        if "학사일정" in norm_f and norm_f.endswith(".csv") and "수업일수" not in norm_f:
-            target_file = os.path.join(base_dir, f)
-            break
-            
+    # 1. 파일 찾기 (공백 무시 및 NFC 정규화로 확실하게 추적)
+    search_dirs = [os.path.dirname(os.path.abspath(__file__)), '.', os.getcwd()]
+    for d in search_dirs:
+        if os.path.exists(d):
+            for f in os.listdir(d):
+                clean_f = unicodedata.normalize('NFC', f).replace(" ", "")
+                # 선생님의 말씀대로 .csv 파일을 명확히 타겟팅
+                if "학사일정" in clean_f and clean_f.endswith(".csv") and "수업일수" not in clean_f:
+                    target_file = os.path.join(d, f)
+                    break
+        if target_file: break
+
     if not target_file or not os.path.exists(target_file): return {}
     
-    # 2. 인코딩 스캔 및 CSV 파싱 (파일 객체를 직접 넘겨 엑셀 내부 줄바꿈 완벽 보존)
     reader = None
+    # 2. 엑셀의 멀티라인(Alt+Enter) 구조를 100% 보존하기 위해 파일 객체(f)를 그대로 csv.reader에 넘김
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
             with open(target_file, 'r', encoding=enc) as f:
                 temp_reader = list(csv.reader(f))
                 if temp_reader and len(temp_reader) > 0:
-                    # 글자가 정상 해독되었는지 검증
                     header_str = "".join(temp_reader[0])
-                    if "월" in header_str or "일" in header_str or "학" in header_str:
+                    # 한글 문자가 깨지지 않았는지 확실히 검증
+                    if "월" in header_str or "일" in header_str:
                         reader = temp_reader
                         break
         except: pass
+        
+    # 만약 위 인코딩이 전부 실패했다면 강제로 에러를 덮어쓰고라도 읽기 시도
+    if not reader:
+        try:
+            with open(target_file, 'r', encoding='utf-8-sig', errors='replace') as f:
+                reader = list(csv.reader(f))
+        except: return {}
 
     if not reader: return {}
     
-    # 3. 데이터 추출 로직 (선생님의 PC 로직 100% 동일 구현)
+    # 3. PC버전의 핵심 로직 100% 이식 파싱
     try:
         header = reader[0]
         month_cols = {}
         for col_idx, val in enumerate(header):
-            m = re.search(r'(\d+)\s*월', val.strip())
+            m = re.search(r'(\d+)\s*월', str(val).strip())
             if m:
                 month = int(m.group(1))
+                # PC 버전의 완벽한 달력 포맷 지정 (col_idx + 1)
                 if month not in month_cols: month_cols[month] = col_idx + 1
         
         for row in reader[1:]:
-            if not row: continue
-            day_match = re.search(r'^(\d+)', str(row[0]).strip())
-            if not day_match: continue
-            day = int(day_match.group(1))
+            if not row or not str(row[0]).strip().isdigit(): continue
+            day = int(str(row[0]).strip())
             
             for month, ev_col in month_cols.items():
                 if ev_col < len(row):
@@ -188,7 +198,8 @@ def load_academic_data():
     return academic_schedule
 
 teachers_data = load_csv()
-academic_data = load_academic_data() # 캐시 완전 삭제
+# 캐시 삭제로 항상 깃허브 최신본 반영
+academic_data = load_academic_data() 
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
