@@ -127,82 +127,68 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 [클라우드 완벽 패치] 인코딩 충돌 완전 해결 및 하이브리드 열 스캔 적용
+# 💡 [핵심] 멀티라인(Alt+Enter) 구조 파괴 방지 및 스마트 인코딩 적용
 def load_academic_data():
     academic_schedule = {}
     target_file = None
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 1. 깃허브 Mac 환경 파일명 자소분리(NFD) 대응 탐색
-    search_dirs = [os.path.dirname(os.path.abspath(__file__)), '.', os.getcwd()]
-    for d in search_dirs:
-        if os.path.exists(d):
-            for f in os.listdir(d):
-                norm_f = unicodedata.normalize('NFC', f)
-                if "학사일정" in norm_f and norm_f.endswith(".csv") and "수업일수" not in norm_f:
-                    target_file = os.path.join(d, f)
-                    break
-        if target_file: break
-
+    # 1. 파일 찾기 (깃허브 NFD 깨짐 방어)
+    for f in os.listdir(base_dir):
+        norm_f = unicodedata.normalize('NFC', f)
+        if "학사일정" in norm_f and norm_f.endswith(".csv") and "수업일수" not in norm_f:
+            target_file = os.path.join(base_dir, f)
+            break
+            
     if not target_file or not os.path.exists(target_file): return {}
     
-    # 2. 리눅스 서버 한글 깨짐 방지용 다중 인코딩 디코더 (바이트로 직접 읽음)
-    try:
-        with open(target_file, 'rb') as f:
-            raw_data = f.read()
-    except: return {}
-
-    content = ""
+    # 2. 인코딩 스캔 및 CSV 파싱 (파일 객체를 직접 넘겨 엑셀 내부 줄바꿈 완벽 보존)
+    reader = None
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
-            temp_content = raw_data.decode(enc)
-            # 한글 문자가 정상적으로 해독되었는지 확인
-            if "월" in temp_content or "일" in temp_content:
-                content = temp_content
-                break
+            with open(target_file, 'r', encoding=enc) as f:
+                temp_reader = list(csv.reader(f))
+                if temp_reader and len(temp_reader) > 0:
+                    # 글자가 정상 해독되었는지 검증
+                    header_str = "".join(temp_reader[0])
+                    if "월" in header_str or "일" in header_str or "학" in header_str:
+                        reader = temp_reader
+                        break
         except: pass
-        
-    if not content: content = raw_data.decode('utf-8', errors='replace')
 
-    # 3. 데이터 파싱
+    if not reader: return {}
+    
+    # 3. 데이터 추출 로직 (선생님의 PC 로직 100% 동일 구현)
     try:
-        reader = list(csv.reader(content.splitlines()))
-        if len(reader) < 2: return {}
-        
         header = reader[0]
         month_cols = {}
         for col_idx, val in enumerate(header):
-            m = re.search(r'(\d+)\s*월', val)
-            if m: month_cols[int(m.group(1))] = col_idx
-        
-        days_of_week = ['월', '화', '수', '목', '금', '토', '일']
+            m = re.search(r'(\d+)\s*월', val.strip())
+            if m:
+                month = int(m.group(1))
+                if month not in month_cols: month_cols[month] = col_idx + 1
         
         for row in reader[1:]:
             if not row: continue
-            day_match = re.search(r'(\d+)', str(row[0]).strip())
+            day_match = re.search(r'^(\d+)', str(row[0]).strip())
             if not day_match: continue
             day = int(day_match.group(1))
             
-            for month, col_idx in month_cols.items():
-                # 💡 [핵심] CSV 포맷이 어긋나 있어도 정답을 찾는 하이브리드 열 스캔 로직
-                val1 = str(row[col_idx]).strip() if col_idx < len(row) else ""
-                val2 = str(row[col_idx + 1]).strip() if (col_idx + 1) < len(row) else ""
-                
-                event = ""
-                if val1 and val1 not in days_of_week: event = val1
-                elif val2 and val2 not in days_of_week: event = val2
-                
-                if event:
-                    year = 2026 if month >= 3 else 2027
-                    date_str = f"{year}-{month:02d}-{day:02d}"
-                    if date_str in academic_schedule:
-                        academic_schedule[date_str] += f"\n{event}"
-                    else:
-                        academic_schedule[date_str] = event
+            for month, ev_col in month_cols.items():
+                if ev_col < len(row):
+                    event = str(row[ev_col]).strip()
+                    if event:
+                        year = 2026 if month >= 3 else 2027
+                        date_str = f"{year}-{month:02d}-{day:02d}"
+                        if date_str in academic_schedule:
+                            academic_schedule[date_str] += f"\n{event}"
+                        else:
+                            academic_schedule[date_str] = event
     except: pass
     return academic_schedule
 
 teachers_data = load_csv()
-academic_data = load_academic_data() # 악성 캐시를 방지하기 위해 접속시마다 최신 데이터를 파싱
+academic_data = load_academic_data() # 캐시 완전 삭제
 teacher_list = list(teachers_data.keys()) if teachers_data else [st.session_state.logged_in_user]
 days = ["월", "화", "수", "목", "금"]
 
