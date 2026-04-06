@@ -18,12 +18,55 @@ st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="�
 components.html("""
 <script>
     const doc = window.parent.document;
-    if (!doc.querySelector('meta[name="apple-mobile-web-app-capable"]')) {
-        const meta1 = doc.createElement('meta'); meta1.name = "apple-mobile-web-app-capable"; meta1.content = "yes"; doc.head.appendChild(meta1);
-        const meta2 = doc.createElement('meta'); meta2.name = "mobile-web-app-capable"; meta2.content = "yes"; doc.head.appendChild(meta2);
-        const meta3 = doc.createElement('meta'); meta3.name = "apple-mobile-web-app-status-bar-style"; meta3.content = "black-translucent"; doc.head.appendChild(meta3);
-        const icon = doc.createElement('link'); icon.rel = "apple-touch-icon"; icon.href = "https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3eb.png"; doc.head.appendChild(icon);
+    doc.documentElement.setAttribute('lang', 'ko');
+    doc.documentElement.setAttribute('translate', 'no');
+    if (doc.body) {
+        doc.body.setAttribute('translate', 'no');
+        doc.body.classList.add('notranslate');
     }
+
+    const ensureMeta = (selector, createFn) => {
+        if (!doc.querySelector(selector)) createFn();
+    };
+    ensureMeta('meta[name="apple-mobile-web-app-capable"]', () => {
+        const m = doc.createElement('meta'); m.name = 'apple-mobile-web-app-capable'; m.content = 'yes'; doc.head.appendChild(m);
+    });
+    ensureMeta('meta[name="mobile-web-app-capable"]', () => {
+        const m = doc.createElement('meta'); m.name = 'mobile-web-app-capable'; m.content = 'yes'; doc.head.appendChild(m);
+    });
+    ensureMeta('meta[name="apple-mobile-web-app-status-bar-style"]', () => {
+        const m = doc.createElement('meta'); m.name = 'apple-mobile-web-app-status-bar-style'; m.content = 'black-translucent'; doc.head.appendChild(m);
+    });
+    ensureMeta('meta[name="google"]', () => {
+        const m = doc.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; doc.head.appendChild(m);
+    });
+    ensureMeta('meta[http-equiv="Content-Language"]', () => {
+        const m = doc.createElement('meta'); m.httpEquiv = 'Content-Language'; m.content = 'ko'; doc.head.appendChild(m);
+    });
+    ensureMeta('link[rel="apple-touch-icon"]', () => {
+        const icon = doc.createElement('link'); icon.rel = 'apple-touch-icon'; icon.href = 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3eb.png'; doc.head.appendChild(icon);
+    });
+
+    const applyInputHints = () => {
+        doc.querySelectorAll('input[type="password"]').forEach((el) => {
+            el.setAttribute('autocomplete', 'current-password');
+            el.setAttribute('autocorrect', 'off');
+            el.setAttribute('autocapitalize', 'none');
+            el.setAttribute('spellcheck', 'false');
+            el.setAttribute('data-lpignore', 'true');
+        });
+        doc.querySelectorAll('input[type="text"]').forEach((el) => {
+            if ((el.getAttribute('aria-label') || '').includes('아이디')) {
+                el.setAttribute('autocomplete', 'username');
+                el.setAttribute('autocorrect', 'off');
+                el.setAttribute('autocapitalize', 'none');
+                el.setAttribute('spellcheck', 'false');
+            }
+        });
+    };
+    applyInputHints();
+    setTimeout(applyInputHints, 300);
+    setTimeout(applyInputHints, 1200);
 </script>
 """, height=0, width=0)
 
@@ -33,13 +76,14 @@ if "user" in params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = params["user"]
 if "t" in params:
     st.session_state.teacher = params["t"]
+if "w" in params:
+    st.session_state.week_offset = int(params["w"])
 
 if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = None
 if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
 if 'show_extra' not in st.session_state: st.session_state.show_extra = False
 if 'show_memo' not in st.session_state: st.session_state.show_memo = True 
-# 💡 [버그 해결] 강제로 '표민호'로 덮어씌워지던 로직을 로그인된 유저 우선으로 변경
 if 'teacher' not in st.session_state: 
     st.session_state.teacher = st.session_state.logged_in_user if st.session_state.logged_in_user else "표민호"
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
@@ -88,8 +132,8 @@ if st.session_state.logged_in_user is None:
     st.info("💡 입력/수정은 PC버전을 이용해 주세요.")
     tab1, tab2 = st.tabs(["🔐 로그인", "📝 새 계정 등록"])
     with tab1:
-        login_id = st.text_input("아이디 (선생님 성함)", placeholder="예: 표민호")
-        login_pw = st.text_input("비밀번호", type="password")
+        login_id = st.text_input("아이디 (선생님 성함)", placeholder="예: 표민호", autocomplete="username")
+        login_pw = st.text_input("비밀번호", type="password", autocomplete="current-password")
         if st.button("로그인", use_container_width=True, type="primary"):
             if login_id and login_pw:
                 u_data = verify_and_load_user(login_id)
@@ -98,7 +142,7 @@ if st.session_state.logged_in_user is None:
                         st.session_state.logged_in_user = login_id
                         st.session_state.teacher = login_id
                         st.query_params["user"] = login_id 
-                        st.query_params["t"] = login_id # 로그인 시 명시적으로 teacher 파라미터도 동기화
+                        st.query_params["t"] = login_id 
                         st.rerun()
                     else: st.error("비밀번호가 일치하지 않습니다.")
                 else: st.error("등록되지 않은 선생님입니다.")
@@ -130,6 +174,7 @@ def load_csv():
         except: pass
     return t_data
 
+# 💡 [버그 완벽 해결] PC버전의 오리지널 학사일정 추출 로직(오지랖 스캔 제거) 100% 반영
 def load_academic_data():
     academic_schedule = {}
     target_file = None
@@ -164,9 +209,10 @@ def load_academic_data():
         month_cols = {}
         for col_idx, val in enumerate(header):
             m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
-            if m: month_cols[int(m.group(1))] = col_idx + 1
-        
-        days_of_week = ['월', '화', '수', '목', '금', '토', '일']
+            if m: 
+                month = int(m.group(1))
+                # 💡 PC버전 오리지널 규칙 (정확히 그 열만 추적!)
+                if month not in month_cols: month_cols[month] = col_idx + 1
         
         for row in reader[header_row_idx + 1:]:
             if not row: continue
@@ -176,21 +222,16 @@ def load_academic_data():
             day = int(day_match.group(1))
             
             for month, ev_col in month_cols.items():
-                event = ""
-                for check_col in [ev_col, ev_col - 1, ev_col + 1]:
-                    if 0 <= check_col < len(row):
-                        val = str(row[check_col]).strip()
-                        if val and val not in days_of_week and not val.isdigit():
-                            event = val
-                            break 
-                
-                if event:
-                    year = 2026 if month >= 3 else 2027
-                    date_str = f"{year}-{month:02d}-{day:02d}"
-                    if date_str in academic_schedule:
-                        academic_schedule[date_str] += f"\n{event}"
-                    else:
-                        academic_schedule[date_str] = event
+                # 💡 옆 칸 탐색 로직(ev_col -1, ev_col +1) 전면 삭제! 무조건 ev_col 만 확인.
+                if ev_col < len(row):
+                    event = str(row[ev_col]).strip()
+                    if event:
+                        year = 2026 if month >= 3 else 2027
+                        date_str = f"{year}-{month:02d}-{day:02d}"
+                        if date_str in academic_schedule:
+                            academic_schedule[date_str] += f"\n{event}"
+                        else:
+                            academic_schedule[date_str] = event
     except: pass
     return academic_schedule
 
@@ -207,6 +248,69 @@ period_times = [
     ("8교시", "16:00\n16:50"), ("9교시", "17:00\n17:50")
 ]
 kst_tz = timezone(timedelta(hours=9))
+
+def strip_html_tags(value: str) -> str:
+    if value is None:
+        return ""
+    value = re.sub(r'<br\s*/?>', '\n', str(value), flags=re.IGNORECASE)
+    value = re.sub(r'<[^>]+>', '', value)
+    return value.strip()
+
+def visual_width(s: str) -> int:
+    width = 0
+    for ch in str(s):
+        width += 2 if unicodedata.east_asian_width(ch) in ('F', 'W') else 1
+    return width
+
+def wrap_text_by_visual_width(text_value: str, max_width: int = 8, max_lines: int = 3) -> str:
+    text_value = strip_html_tags(text_value).replace(' / ', '\n')
+    if not text_value:
+        return ""
+    source_lines = [ln.strip() for ln in text_value.splitlines() if ln.strip()]
+    wrapped = []
+    for src in source_lines:
+        current = ""
+        current_w = 0
+        for ch in src:
+            ch_w = 2 if unicodedata.east_asian_width(ch) in ('F', 'W') else 1
+            if current and current_w + ch_w > max_width:
+                wrapped.append(current)
+                current = ch
+                current_w = ch_w
+                if len(wrapped) >= max_lines:
+                    break
+            else:
+                current += ch
+                current_w += ch_w
+        if len(wrapped) >= max_lines:
+            break
+        if current:
+            wrapped.append(current)
+        if len(wrapped) >= max_lines:
+            break
+    return '\n'.join(wrapped[:max_lines])
+
+def parse_created_at(value: str):
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        return datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except Exception:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+def sort_memos_for_mobile(memos):
+    active = [m.copy() for m in memos if not m.get('is_strike', False)]
+    completed = [m.copy() for m in memos if m.get('is_strike', False)]
+    active_important = sorted([m for m in active if m.get('is_important', False)], key=lambda x: parse_created_at(x.get('created_at', '')), reverse=True)
+    active_normal = sorted([m for m in active if not m.get('is_important', False)], key=lambda x: parse_created_at(x.get('created_at', '')), reverse=True)
+    completed_sorted = sorted(completed, key=lambda x: parse_created_at(x.get('created_at', '')), reverse=True)
+    sorted_active = active_important + active_normal
+    active_count = len(sorted_active)
+    for idx, memo in enumerate(sorted_active):
+        memo['display_num'] = active_count - idx
+    for memo in completed_sorted:
+        memo['display_num'] = ''
+    return sorted_active + completed_sorted
 
 def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
@@ -462,45 +566,40 @@ def display_dashboard():
             
             font_sz_str = "14px"
             line_height = "1.2"
-            
-            if period == "학사일정":
-                font_sz = 12
-                if subject:
-                    lines = subject.split('\n')
-                    num_lines = len(lines)
-                    max_len = max([len(l) for l in lines] if lines else [0])
-                    if num_lines >= 4 or max_len > 9: font_sz = 9
-                    elif num_lines >= 3 or max_len > 6: font_sz = 10
-                font_sz_str = f"{font_sz}px"
-                line_height = "1.1"
-
             display = subject.replace('\n', '<br>') if subject else ""
             td_cell_class = ""
-            if period != "학사일정":
-                if is_current_week and col == today_idx and row_idx == active_row: td_cell_class = "hl-fill-yellow"
-                elif is_current_week and col == today_idx and row_idx == preview_row: td_cell_class = "hl-border-yellow"
-            
-            html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz_str}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:{line_height}; word-break:keep-all; overflow-wrap:break-word; white-space:normal; padding:2px;'>{display}</div></td>")
+
+            if period == "학사일정":
+                normalized_subject = wrap_text_by_visual_width(subject, max_width=8, max_lines=3)
+                display = normalized_subject.replace('\n', '<br>') if normalized_subject else ""
+                longest_line = max([visual_width(line) for line in normalized_subject.split('\n')] or [0])
+                line_count = len(normalized_subject.split('\n')) if normalized_subject else 0
+                font_sz = 11
+                if line_count >= 3 or longest_line >= 8:
+                    font_sz = 9
+                elif line_count == 2 or longest_line >= 6:
+                    font_sz = 10
+                font_sz_str = f"{font_sz}px"
+            else:
+                if is_current_week and col == today_idx and row_idx == active_row:
+                    td_cell_class = "hl-fill-yellow"
+                elif is_current_week and col == today_idx and row_idx == preview_row:
+                    td_cell_class = "hl-border-yellow"
+
+            if period == "학사일정":
+                html_parts.append(f"<td class='{td_cell_class} academic-cell' style='background-color:{bg}; color:{fg};'><div class='academic-cell-content' style='text-decoration:{deco}; font-size:{font_sz_str}; color:{fg};'>{display}</div></td>")
+            else:
+                html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz_str}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:{line_height}; word-break:break-word; overflow-wrap:anywhere; white-space:normal; padding:2px; box-sizing:border-box; overflow:hidden;'>{display}</div></td>")
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
 
     if st.session_state.show_memo:
         html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div class='memo-container'>")
         if memos_list:
-            # --- 수정된 정렬 및 번호 부여 로직 시작 ---
-            memos_list.sort(key=lambda m: (
-                m.get('is_strike', False),        # False(0)가 True(1)보다 앞에 옴
-                not m.get('is_important', False)  # 중요(True)를 False로 반전시켜 0으로 만들어 앞에 오게 함
-            ))
-
-            for i, m in enumerate(memos_list): 
-                m['display_num'] = len(memos_list) - i
-
-            sorted_memos = memos_list
-            # --- 수정된 정렬 및 번호 부여 로직 끝 ---
+            sorted_memos = sort_memos_for_mobile(memos_list)
 
             for m in sorted_memos:
-                num = m['display_num']
+                num = m.get('display_num', '')
                 text, is_strike, is_imp = m['memo_text'], m.get('is_strike', False), m.get('is_important', False)
                 raw_time = m.get('created_at', '')
                 time_str = ""
@@ -510,11 +609,13 @@ def display_dashboard():
                         dt_utc = datetime.fromisoformat(clean_time)
                         dt_kst = dt_utc.astimezone(timezone(timedelta(hours=9)))
                         time_str = dt_kst.strftime('%y.%m.%d %H:%M')
-                    except: time_str = raw_time[:10]
+                    except:
+                        time_str = raw_time[:10]
 
                 prefix = "⭐ " if is_imp else ""
+                num_html = f"<b>{num}.</b> " if str(num) else ""
                 deco, color = ("line-through", "gray") if is_strike else ("none", t['text'])
-                html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']}; display:flex; justify-content:space-between; align-items:flex-start;'><div style='flex:1; word-break:break-word;'><b>{num}.</b> {prefix}{text}</div><div style='font-size:11px; font-weight:normal; opacity:0.6; white-space:nowrap; margin-left:8px; margin-top:2px;'>{time_str}</div></div>")
+                html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']}; display:flex; justify-content:space-between; align-items:flex-start;'><div style='flex:1; word-break:break-word;'>{num_html}{prefix}{text}</div><div style='font-size:11px; font-weight:normal; opacity:0.72; white-space:nowrap; margin-left:8px; margin-top:2px;'>{time_str}</div></div>")
         else: 
             html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
         html_parts.append("</div></div>")
