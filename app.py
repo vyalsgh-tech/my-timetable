@@ -39,10 +39,9 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
-# 💡 API 호출 최적화 (수정사항 1, 2 반영)
+# 💡 API 호출 최적화
 def fetch_all_data(user_id):
     try:
-        # 1. PC버전 유저 설정(테마 등) 불러오기
         r_user = requests.get(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{user_id}", headers=HEADERS, timeout=3)
         if r_user.status_code == 200 and len(r_user.json()) > 0:
             u_data = r_user.json()[0]
@@ -52,7 +51,6 @@ def fetch_all_data(user_id):
             st.session_state.show_extra = u_data.get('show_extra', False)
             st.session_state.show_memo = u_data.get('show_memo', True)
         
-        # 2. 커스텀 스케줄 & 메모 (한 번만 로드하여 캐싱, 속도 대폭 개선)
         target_teacher = st.session_state.get('teacher', user_id)
         r_cust = requests.get(f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{target_teacher}", headers=HEADERS, timeout=3)
         if r_cust.status_code == 200: st.session_state.custom_data = {row['date_key']: row['subject'] for row in r_cust.json()}
@@ -77,7 +75,7 @@ def check_password(user_id):
     except: pass
     return None
 
-# 💡 URL 파라미터를 통한 상태 완벽 복구 (자동 로그인)
+# 💡 URL 파라미터를 통한 상태 복구
 params = st.query_params
 if "user" in params and 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = params["user"]
@@ -90,11 +88,9 @@ if 'week_offset' not in st.session_state: st.session_state.week_offset = 0
 if 'teacher' not in st.session_state: 
     st.session_state.teacher = st.session_state.logged_in_user if st.session_state.logged_in_user else "표민호"
 
-# 최초 로그인 및 자동 로그인 시 1회만 데이터 로드 수행 (테마 PC동기화 + 로딩 지연 제거)
 if st.session_state.logged_in_user and not st.session_state.get('data_loaded', False):
     fetch_all_data(st.session_state.logged_in_user)
 
-# 기본값 보장
 if 'theme_idx' not in st.session_state: st.session_state.theme_idx = 0
 if 'font_name' not in st.session_state: st.session_state.font_name = "맑은 고딕"
 if 'show_zero' not in st.session_state: st.session_state.show_zero = False
@@ -134,7 +130,7 @@ if st.session_state.logged_in_user is None:
                         if auto_login:
                             st.query_params["user"] = login_id 
                             st.query_params["t"] = login_id 
-                        fetch_all_data(login_id) # 로그인 즉시 PC데이터 로딩
+                        fetch_all_data(login_id)
                         st.rerun()
                     else: st.error("비밀번호가 일치하지 않습니다.")
                 else: st.error("등록되지 않은 선생님입니다.")
@@ -165,7 +161,6 @@ def load_csv():
         except: pass
     return t_data
 
-# 💡 파일 로드 캐싱 추가 (로딩 속도 대폭 단축)
 @st.cache_data
 def load_academic_data():
     academic_schedule = {}
@@ -232,7 +227,7 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정
+# 💡 글로벌 CSS 설정 (9컬럼 대응 사이즈 조정)
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
@@ -257,12 +252,13 @@ st.markdown(f"""
         padding: 0 !important; margin: 0 !important; display: block !important;
     }}
     
+    /* 네비게이션 컬럼 폭 세밀 조정 */
     div[data-testid="stHorizontalBlock"] > div:nth-child(1),
     div[data-testid="stHorizontalBlock"] > div:nth-child(3) {{
-        flex: 0 0 32px !important; width: 32px !important; min-width: 32px !important;
+        flex: 0 0 28px !important; width: 28px !important; min-width: 28px !important;
     }}
     div[data-testid="stHorizontalBlock"] > div:nth-child(2) {{
-        flex: 0 0 65px !important; width: 65px !important; min-width: 65px !important;
+        flex: 0 0 58px !important; width: 58px !important; min-width: 58px !important;
     }}
     
     div[data-testid="stHorizontalBlock"] .stButton > button {{
@@ -308,11 +304,11 @@ st.markdown(f"<div class='header-container'><div style='font-size:16px; font-wei
 
 @st.fragment
 def display_dashboard():
-    # 💡 속도 개선 핵심: 서버 API를 매번 호출하지 않고 캐싱된 로컬 세션 데이터를 사용
     custom_data = st.session_state.get('custom_data', {})
     memos_list = st.session_state.get('memos_list', [])
 
-    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
+    # 💡 9개의 열로 늘려서 캘린더 아이콘 배치
+    c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns(9)
     with c1:
         if st.button("◀", use_container_width=True, key="prev"): st.session_state.week_offset -= 1; safe_fragment_rerun()
     with c2:
@@ -320,30 +316,43 @@ def display_dashboard():
         if st.button("이번주", use_container_width=True, type=btn_type, key="today"): st.session_state.week_offset = 0; safe_fragment_rerun()
     with c3:
         if st.button("▶", use_container_width=True, key="next"): st.session_state.week_offset += 1; safe_fragment_rerun()
+    
+    # 💡 신규 기능: 달력 아이콘 및 주차 이동 로직
     with c4:
-        if st.button("🔄", use_container_width=True, key="refresh"): 
-            # 🔄 새로고침 버튼 클릭 시에만 DB를 다시 조회해서 동기화
-            fetch_all_data(st.session_state.logged_in_user)
-            st.rerun() # 전체 새로고침하여 변경된 테마 및 데이터 즉각 반영
+        with st.popover("📅", use_container_width=True):
+            st.markdown("<div style='font-size:13px; font-weight:bold; margin-bottom:5px; color:#333;'>이동할 날짜 선택</div>", unsafe_allow_html=True)
+            selected_date = st.date_input("날짜 선택", value=datetime.now(kst_tz).date(), label_visibility="collapsed")
+            if st.button("해당 주간으로 이동", use_container_width=True, type="primary"):
+                now_date = datetime.now(kst_tz).date()
+                now_monday = now_date - timedelta(days=now_date.weekday())
+                selected_monday = selected_date - timedelta(days=selected_date.weekday())
+                diff_weeks = (selected_monday - now_monday).days // 7
+                st.session_state.week_offset = diff_weeks
+                safe_fragment_rerun()
+
     with c5:
+        if st.button("🔄", use_container_width=True, key="refresh"): 
+            fetch_all_data(st.session_state.logged_in_user)
+            st.rerun() 
+    with c6:
         btn_type = "primary" if st.session_state.show_memo else "secondary"
         if st.button("📝", use_container_width=True, type=btn_type, key="memo_toggle"): 
             st.session_state.show_memo = not st.session_state.show_memo
             threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_memo", st.session_state.show_memo)).start()
             safe_fragment_rerun()
-    with c6:
+    with c7:
         btn_type = "primary" if st.session_state.show_zero else "secondary"
         if st.button("☀️", use_container_width=True, type=btn_type, key="zero_toggle"): 
             st.session_state.show_zero = not st.session_state.show_zero
             threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_zero", st.session_state.show_zero)).start()
             safe_fragment_rerun()
-    with c7:
+    with c8:
         btn_type = "primary" if st.session_state.show_extra else "secondary"
         if st.button("🌙", use_container_width=True, type=btn_type, key="extra_toggle"): 
             st.session_state.show_extra = not st.session_state.show_extra
             threading.Thread(target=update_db_bg, args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_extra", st.session_state.show_extra)).start()
             safe_fragment_rerun()
-    with c8:
+    with c9:
         with st.popover("⚙️", use_container_width=True):
             st.markdown("<div style='font-size:14px; font-weight:bold; margin-bottom:8px;'>📱 앱 설치 (전체화면)</div>", unsafe_allow_html=True)
             st.markdown("""
