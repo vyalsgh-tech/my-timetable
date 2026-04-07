@@ -14,10 +14,11 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 1-1. PWA(웹앱) 설정 및 아이콘 주입
-# 로고 이미지 경로는 깃허브에 업로드된 logo.ico를 사용하도록 설정했습니다.
-LOGO_URL = "https://github.com/vyalsgh-tech/my-timetable" # 실제 깃허브 주소에 맞춰 경로 확인 필요
+# 💡 깃허브 Raw 이미지 경로 설정 (vyalsgh-tech/my-timetable 저장소 반영)
+LOGO_URL_PNG = "https://raw.githubusercontent.com/vyalsgh-tech/my-timetable/main/logo.png"
+LOGO_URL_ICO = "https://raw.githubusercontent.com/vyalsgh-tech/my-timetable/main/logo.ico"
 
+# 💡 1-1. PWA(웹앱) 설정 및 아이콘 주입
 components.html(f"""
 <script>
     const doc = window.parent.document;
@@ -31,6 +32,8 @@ components.html(f"""
     const ensureMeta = (selector, createFn) => {{
         if (!doc.querySelector(selector)) createFn();
     }};
+    
+    // 모바일 홈 화면 실행 설정
     ensureMeta('meta[name="apple-mobile-web-app-capable"]', () => {{
         const m = doc.createElement('meta'); m.name = 'apple-mobile-web-app-capable'; m.content = 'yes'; doc.head.appendChild(m);
     }});
@@ -40,12 +43,17 @@ components.html(f"""
     ensureMeta('meta[name="apple-mobile-web-app-status-bar-style"]', () => {{
         const m = doc.createElement('meta'); m.name = 'apple-mobile-web-app-status-bar-style'; m.content = 'black-translucent'; doc.head.appendChild(m);
     }});
-    // 아이콘 설정 (깃허브 로고 연결)
+
+    // 아이콘 설정 (아이폰용 고해상도 PNG 우선 적용)
     ensureMeta('link[rel="apple-touch-icon"]', () => {{
-        const icon = doc.createElement('link'); icon.rel = 'apple-touch-icon'; icon.href = '{LOGO_URL}'; doc.head.appendChild(icon);
+        const icon = doc.createElement('link'); icon.rel = 'apple-touch-icon'; icon.href = '{LOGO_URL_PNG}'; doc.head.appendChild(icon);
     }});
+    // 일반 파비콘 및 안드로이드용 ICO 설정
     ensureMeta('link[rel="shortcut icon"]', () => {{
-        const icon = doc.createElement('link'); icon.rel = 'shortcut icon'; icon.href = '{LOGO_URL}'; doc.head.appendChild(icon);
+        const icon = doc.createElement('link'); icon.rel = 'shortcut icon'; icon.href = '{LOGO_URL_ICO}'; doc.head.appendChild(icon);
+    }});
+    ensureMeta('link[rel="icon"]', () => {{
+        const icon = doc.createElement('link'); icon.rel = 'icon'; icon.href = '{LOGO_URL_ICO}'; doc.head.appendChild(icon);
     }});
 
     const applyInputHints = () => {{
@@ -135,7 +143,7 @@ if st.session_state.logged_in_user is None:
     with tab1:
         login_id = st.text_input("아이디 (선생님 성함)", placeholder="예: 표민호", autocomplete="username")
         login_pw = st.text_input("비밀번호", type="password", autocomplete="current-password")
-        # 3. 로그인 정보 기억하기 (자동 로그인 체크박스)
+        # 3. 로그인 정보 기억하기 (자동 로그인)
         remember_me = st.checkbox("자동 로그인", value=True)
         if st.button("로그인", use_container_width=True, type="primary"):
             if login_id and login_pw:
@@ -144,7 +152,6 @@ if st.session_state.logged_in_user is None:
                     if u_data['password'] == login_pw:
                         st.session_state.logged_in_user = login_id
                         st.session_state.teacher = login_id
-                        # 자동 로그인 시 URL 파라미터에 사용자 정보 고정
                         if remember_me:
                             st.query_params["user"] = login_id 
                             st.query_params["t"] = login_id 
@@ -182,14 +189,11 @@ def load_csv():
 def load_academic_data():
     academic_schedule = {}
     target_file = None
-    
     for filepath in glob.glob("**/*학사일정*.csv", recursive=True):
         if "수업일수" not in filepath:
             target_file = filepath
             break
-
     if not target_file or not os.path.exists(target_file): return {}
-    
     reader = None
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
@@ -199,16 +203,13 @@ def load_academic_data():
                     reader = list(csv.reader(io.StringIO(content)))
                     break
         except: pass
-
     if not reader: return {}
-    
     try:
         header_row_idx = 0
         for i, row in enumerate(reader):
             if any("월" in str(cell) for cell in row):
                 header_row_idx = i
                 break
-                
         header = reader[header_row_idx]
         month_cols = {}
         for col_idx, val in enumerate(header):
@@ -216,24 +217,19 @@ def load_academic_data():
             if m: 
                 month = int(m.group(1))
                 if month not in month_cols: month_cols[month] = col_idx + 1
-        
         for row in reader[header_row_idx + 1:]:
             if not row: continue
-            
             day_match = re.search(r'^(\d+)', str(row[0]).strip())
             if not day_match: continue
             day = int(day_match.group(1))
-            
             for month, ev_col in month_cols.items():
                 if ev_col < len(row):
                     event = str(row[ev_col]).strip()
                     if event:
                         year = 2026 if month >= 3 else 2027
                         date_str = f"{year}-{month:02d}-{day:02d}"
-                        if date_str in academic_schedule:
-                            academic_schedule[date_str] += f"\n{event}"
-                        else:
-                            academic_schedule[date_str] = event
+                        if date_str in academic_schedule: academic_schedule[date_str] += f"\n{event}"
+                        else: academic_schedule[date_str] = event
     except: pass
     return academic_schedule
 
@@ -269,14 +265,12 @@ def wrap_text_by_visual_width(text_value: str, max_width: int = 8, max_lines: in
     source_lines = [ln.strip() for ln in text_value.splitlines() if ln.strip()]
     wrapped = []
     for src in source_lines:
-        current = ""
-        current_w = 0
+        current, current_w = "", 0
         for ch in src:
             ch_w = 2 if unicodedata.east_asian_width(ch) in ('F', 'W') else 1
             if current and current_w + ch_w > max_width:
                 wrapped.append(current)
-                current = ch
-                current_w = ch_w
+                current, current_w = ch, ch_w
                 if len(wrapped) >= max_lines: break
             else:
                 current += ch
@@ -289,7 +283,7 @@ def wrap_text_by_visual_width(text_value: str, max_width: int = 8, max_lines: in
 def parse_created_at(value: str):
     if not value: return datetime.min.replace(tzinfo=timezone.utc)
     try: return datetime.fromisoformat(value.replace('Z', '+00:00'))
-    except Exception: return datetime.min.replace(tzinfo=timezone.utc)
+    except: return datetime.min.replace(tzinfo=timezone.utc)
 
 def sort_memos_for_mobile(memos):
     active = [m.copy() for m in memos if not m.get('is_strike', False)]
@@ -299,10 +293,8 @@ def sort_memos_for_mobile(memos):
     completed_sorted = sorted(completed, key=lambda x: parse_created_at(x.get('created_at', '')), reverse=True)
     sorted_active = active_important + active_normal
     active_count = len(sorted_active)
-    for idx, memo in enumerate(sorted_active):
-        memo['display_num'] = active_count - idx
-    for memo in completed_sorted:
-        memo['display_num'] = ''
+    for idx, memo in enumerate(sorted_active): memo['display_num'] = active_count - idx
+    for memo in completed_sorted: memo['display_num'] = ''
     return sorted_active + completed_sorted
 
 def safe_fragment_rerun():
@@ -412,7 +404,6 @@ def display_dashboard():
             safe_fragment_rerun()
     with c8:
         with st.popover("⚙️", use_container_width=True):
-            # 1. 앱 설치 안내 페이지 문장 정렬 수정
             st.markdown("<div style='font-size:14px; font-weight:bold; margin-bottom:8px;'>📱 앱 설치 (전체화면)</div>", unsafe_allow_html=True)
             st.markdown(f"""
             <div class='install-guide-box'>
@@ -459,7 +450,6 @@ def display_dashboard():
     html_parts = []
     html_parts.append(f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'><table class='mobile-table'>")
     html_parts.append(f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'><th style='width: 13%; font-size:14px;'>교시</th>")
-
     for col, day in enumerate(days):
         date_str = (monday + timedelta(days=col)).strftime("%m/%d")
         th_class = "hl-border-red" if (is_current_week and col == today_idx) else ""
@@ -467,41 +457,31 @@ def display_dashboard():
         th_fg = 'white' if (is_current_week and col == today_idx and t['name'] != '웜 파스텔') else t['head_fg']
         html_parts.append(f"<th class='{th_class}' style='background-color:{th_bg}; color:{th_fg};'><div style='line-height: 1.1;'><span style='font-size:15px;'>{day}</span><br><span style='font-size:12px; font-weight:normal;'>{date_str}</span></div></th>")
     html_parts.append("</tr>")
-
     base_schedule = teachers_data.get(st.session_state.teacher, {d: [""]*9 for d in days})
-    
     for row_idx, (period, time_str) in enumerate(period_times):
         if period != "학사일정":
             if period == "조회" and not st.session_state.show_zero: continue
             if period in ["8교시", "9교시"] and not st.session_state.show_extra: continue
-
         td_period_class = "hl-border-red" if (is_current_week and (row_idx == active_row or row_idx == preview_row)) else ""
         html_parts.append("<tr>")
-        
-        if period == "학사일정":
-            p_bg, p_fg = t.get('acad_per_bg', t['per_bg']), t.get('acad_per_fg', t['per_fg'])
+        if period == "학사일정": p_bg, p_fg = t.get('acad_per_bg', t['per_bg']), t.get('acad_per_fg', t['per_fg'])
         else:
             p_bg = t['hl_per'] if (is_current_week and active_row == row_idx) else t['per_bg']
             p_fg = 'white' if (is_current_week and active_row == row_idx and t['name'] != '웜 파스텔') else t['per_fg']
-        
         time_html = ""
         if period != "학사일정":
             start_t, end_t = time_str.split('\n')
             time_html = f"<div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div>"
-        
         html_parts.append(f"<td class='{td_period_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div>{time_html}</td>")
-        
         for col, day in enumerate(days):
             row_num = row_idx + 1
             date_str = (monday + timedelta(days=col)).strftime('%Y-%m-%d')
             date_key = f"{date_str}_schedule" if row_num == 1 else f"{date_str}_{row_num - 1}"
-            
             subject = ""
             if period == "학사일정": subject = academic_data.get(date_str, "").replace(' / ', '\n')
             elif period not in ["점심", "조회"]:
                 s_idx = row_num - 3 if row_num < 7 else row_num - 4
                 if 0 <= s_idx < len(base_schedule.get(day, [])): subject = base_schedule[day][s_idx]
-            
             is_strike, is_custom, custom_color = False, False, None
             if date_key in custom_data:
                 val = custom_data[date_key]
@@ -511,7 +491,6 @@ def display_dashboard():
                     m = re.match(r'^<span style=[\'"]color:([^"\']+)[\'"]>(.*)</span>$', val, re.DOTALL | re.IGNORECASE)
                     if m: custom_color, subject = m.group(1), m.group(2)
                     else: subject = val
-            
             if period == "학사일정":
                 bg, fg = t.get('acad_cell_bg', t['lunch_bg']), t.get('acad_cell_fg', t['cell_fg'])
                 deco = "line-through" if is_strike else "none"
@@ -523,10 +502,8 @@ def display_dashboard():
                 if is_strike: fg = "#bdc3c7" if t['name'] == '모던 다크' else "#95a5a6"
                 elif custom_color: fg = custom_color
                 elif is_custom: fg = "#e74c3c"
-            
             font_sz_str, line_height, td_cell_class = "14px", "1.2", ""
             display = subject.replace('\n', '<br>') if subject else ""
-
             if period == "학사일정":
                 normalized_subject = wrap_text_by_visual_width(subject, max_width=8, max_lines=3)
                 display = normalized_subject.replace('\n', '<br>') if normalized_subject else ""
@@ -540,14 +517,12 @@ def display_dashboard():
                 if is_current_week and col == today_idx:
                     if row_idx == active_row: td_cell_class = "hl-fill-yellow"
                     elif row_idx == preview_row: td_cell_class = "hl-border-yellow"
-
             if period == "학사일정":
                 html_parts.append(f"<td class='{td_cell_class} academic-cell' style='background-color:{bg}; color:{fg};'><div class='academic-cell-content' style='text-decoration:{deco}; font-size:{font_sz_str}; color:{fg};'>{display}</div></td>")
             else:
                 html_parts.append(f"<td class='{td_cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz_str}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:{line_height}; word-break:break-word; overflow-wrap:anywhere; white-space:normal; padding:2px; box-sizing:border-box; overflow:hidden;'>{display}</div></td>")
         html_parts.append("</tr>")
     html_parts.append("</table></div>")
-
     if st.session_state.show_memo:
         html_parts.append(f"<div style='margin-top:10px;'><h3 style='margin:0; font-size:15px; margin-bottom:8px; color:{t['text']};'>📝 {st.session_state.teacher} 메모장 <span style='font-size:11px; font-weight:normal; opacity:0.6;'>(수정은 PC에서)</span></h3><div class='memo-container'>")
         if memos_list:
@@ -557,16 +532,13 @@ def display_dashboard():
                 text, is_strike, is_imp, raw_time = m['memo_text'], m.get('is_strike', False), m.get('is_important', False), m.get('created_at', '')
                 time_str = ""
                 if raw_time:
-                    try:
-                        dt_kst = datetime.fromisoformat(raw_time.replace('Z', '+00:00')).astimezone(timezone(timedelta(hours=9)))
-                        time_str = dt_kst.strftime('%y.%m.%d %H:%M')
+                    try: dt_kst = datetime.fromisoformat(raw_time.replace('Z', '+00:00')).astimezone(timezone(timedelta(hours=9))); time_str = dt_kst.strftime('%y.%m.%d %H:%M')
                     except: time_str = raw_time[:10]
                 prefix, num_html = "⭐ " if is_imp else "", f"<b>{num}.</b> " if str(num) else ""
                 deco, color = ("line-through", "gray") if is_strike else ("none", t['text'])
                 html_parts.append(f"<div style='color:{color}; text-decoration:{deco}; font-size:14px; font-weight:bold; line-height:1.4; padding: 6px 2px; border-bottom: 1px solid {t['grid']}; display:flex; justify-content:space-between; align-items:flex-start;'><div style='flex:1; word-break:break-word;'>{num_html}{prefix}{text}</div><div style='font-size:11px; font-weight:normal; opacity:0.72; white-space:nowrap; margin-left:8px; margin-top:2px;'>{time_str}</div></div>")
         else: html_parts.append(f"<div style='font-size:13px; color:{t['text']}; opacity:0.7; padding:10px;'>저장된 메모가 없습니다.</div>")
         html_parts.append("</div></div>")
-
     st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 display_dashboard()
