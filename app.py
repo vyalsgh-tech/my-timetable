@@ -227,7 +227,7 @@ def safe_fragment_rerun():
     if "scope" in inspect.signature(st.rerun).parameters: st.rerun(scope="fragment")
     else: st.rerun()
 
-# 💡 글로벌 CSS 설정 (9컬럼 대응 사이즈 조정)
+# 💡 글로벌 CSS 설정
 st.markdown(f"""
 <style>
     html, body, .stApp {{ touch-action: auto !important; background-color: {t['bg']} !important; font-family: '{st.session_state.font_name}', sans-serif; }}
@@ -252,7 +252,6 @@ st.markdown(f"""
         padding: 0 !important; margin: 0 !important; display: block !important;
     }}
     
-    /* 네비게이션 컬럼 폭 세밀 조정 */
     div[data-testid="stHorizontalBlock"] > div:nth-child(1),
     div[data-testid="stHorizontalBlock"] > div:nth-child(3) {{
         flex: 0 0 28px !important; width: 28px !important; min-width: 28px !important;
@@ -307,7 +306,6 @@ def display_dashboard():
     custom_data = st.session_state.get('custom_data', {})
     memos_list = st.session_state.get('memos_list', [])
 
-    # 💡 9개의 열로 늘려서 캘린더 아이콘 배치
     c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns(9)
     with c1:
         if st.button("◀", use_container_width=True, key="prev"): st.session_state.week_offset -= 1; safe_fragment_rerun()
@@ -317,16 +315,23 @@ def display_dashboard():
     with c3:
         if st.button("▶", use_container_width=True, key="next"): st.session_state.week_offset += 1; safe_fragment_rerun()
     
-    # 💡 신규 기능: 달력 아이콘 및 주차 이동 로직
+    # 💡 달력에서 날짜를 선택하면 즉시 해당 주로 이동하는 로직
     with c4:
         with st.popover("📅", use_container_width=True):
             st.markdown("<div style='font-size:13px; font-weight:bold; margin-bottom:5px; color:#333;'>이동할 날짜 선택</div>", unsafe_allow_html=True)
-            selected_date = st.date_input("날짜 선택", value=datetime.now(kst_tz).date(), label_visibility="collapsed")
-            if st.button("해당 주간으로 이동", use_container_width=True, type="primary"):
-                now_date = datetime.now(kst_tz).date()
-                now_monday = now_date - timedelta(days=now_date.weekday())
-                selected_monday = selected_date - timedelta(days=selected_date.weekday())
-                diff_weeks = (selected_monday - now_monday).days // 7
+            
+            now_date = datetime.now(kst_tz).date()
+            # 현재 화면에 표시 중인 주간의 날짜를 기본값으로 설정
+            current_view_date = now_date + timedelta(weeks=st.session_state.week_offset)
+            
+            selected_date = st.date_input("날짜 선택", value=current_view_date, label_visibility="collapsed")
+            
+            now_monday = now_date - timedelta(days=now_date.weekday())
+            selected_monday = selected_date - timedelta(days=selected_date.weekday())
+            diff_weeks = (selected_monday - now_monday).days // 7
+            
+            # 선택한 날짜가 현재 표시 중인 주차와 다르면 즉시 offset 업데이트 후 화면 갱신
+            if diff_weeks != st.session_state.week_offset:
                 st.session_state.week_offset = diff_weeks
                 safe_fragment_rerun()
 
