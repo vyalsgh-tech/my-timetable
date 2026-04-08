@@ -14,10 +14,14 @@ from datetime import datetime, timedelta, timezone
 # 1. 페이지 설정
 st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="🏫", layout="centered")
 
-# 💡 1-1. PWA(웹앱) 설정 및 아이콘 강제 주입
+# 💡 1-1. PWA(웹앱) 설정, 자동 로그인 복구, 브랜딩 숨김
 components.html("""
 <script>
-    const doc = window.parent.document;
+    const parentWindow = window.parent;
+    const doc = parentWindow.document;
+    const KEY_USER = "mdgo_auto_login_user";
+    const KEY_TEACHER = "mdgo_auto_login_teacher";
+
     const metaTags = [
         { name: "apple-mobile-web-app-capable", content: "yes" },
         { name: "mobile-web-app-capable", content: "yes" },
@@ -25,13 +29,72 @@ components.html("""
     ];
     metaTags.forEach(tag => {
         if (!doc.querySelector(`meta[name="${tag.name}"]`)) {
-            const m = doc.createElement('meta'); m.name = tag.name; m.content = tag.content; doc.head.appendChild(m);
+            const m = doc.createElement("meta");
+            m.name = tag.name;
+            m.content = tag.content;
+            doc.head.appendChild(m);
         }
     });
-    const iconLink = doc.querySelector('link[rel="apple-touch-icon"]') || doc.createElement('link');
+
+    const iconLink = doc.querySelector('link[rel="apple-touch-icon"]') || doc.createElement("link");
     iconLink.rel = "apple-touch-icon";
     iconLink.href = "https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f3eb.png";
     if (!doc.contains(iconLink)) doc.head.appendChild(iconLink);
+
+    function hideBranding() {
+        const selectors = [
+            'header[data-testid="stHeader"]',
+            '[data-testid="stToolbar"]',
+            '[data-testid="stDecoration"]',
+            '#MainMenu'
+        ];
+        selectors.forEach(sel => {
+            doc.querySelectorAll(sel).forEach(el => {
+                el.style.display = 'none';
+                el.style.visibility = 'hidden';
+            });
+        });
+
+        doc.querySelectorAll('a, button, div, span').forEach(el => {
+            const txt = (el.innerText || '').trim();
+            const href = (el.getAttribute && el.getAttribute('href')) || '';
+            const looksLikeProfile = /^@[\\w.-]+$/i.test(txt);
+            const isStreamlitBadge = href.includes('streamlit.io') || txt.includes('streamlit.io') || txt.includes('Open app in Streamlit');
+            if (looksLikeProfile || isStreamlitBadge) {
+                const target = el.closest('a, button, div') || el;
+                target.style.display = 'none';
+                target.style.visibility = 'hidden';
+                target.style.width = '0';
+                target.style.height = '0';
+                target.style.overflow = 'hidden';
+            }
+        });
+    }
+
+    function restoreAutoLogin() {
+        try {
+            const url = new URL(parentWindow.location.href);
+            if (!url.searchParams.get('user')) {
+                const savedUser = parentWindow.localStorage.getItem(KEY_USER);
+                const savedTeacher = parentWindow.localStorage.getItem(KEY_TEACHER) || savedUser;
+                if (savedUser) {
+                    url.searchParams.set('user', savedUser);
+                    url.searchParams.set('t', savedTeacher);
+                    parentWindow.location.replace(url.toString());
+                    return true;
+                }
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    if (!restoreAutoLogin()) {
+        hideBranding();
+        const observer = new MutationObserver(hideBranding);
+        observer.observe(doc.body, { childList: true, subtree: true });
+        setTimeout(hideBranding, 300);
+        setTimeout(hideBranding, 1200);
+    }
 </script>
 """, height=0, width=0)
 
@@ -107,14 +170,9 @@ themes = [
     { 'name': '포레스트', 'bg': '#e9ede7', 'top': '#2c5344', 'grid': '#d0d8d3', 'head_bg': '#3b6a57', 'head_fg': 'white', 'per_bg': '#8ba89a', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e8d7', 'cell_fg': '#1a3026', 'hl_per': '#d35400', 'hl_cell': '#f9e79f', 'text': '#1a3026',
       'acad_per_bg': '#d35400', 'acad_per_fg': 'white', 'acad_cell_bg': '#fad7a1', 'acad_cell_fg': '#6e2c00' },
     { 'name': '모노톤', 'bg': '#f5f5f5', 'top': '#333333', 'grid': '#e0e0e0', 'head_bg': '#555555', 'head_fg': 'white', 'per_bg': '#999999', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d4d4d4', 'cell_fg': '#000000', 'hl_per': '#d90429', 'hl_cell': '#edf2f4', 'text': '#222222',
-      'acad_per_bg': '#424242', 'acad_per_fg': 'white', 'acad_cell_bg': '#cfcfcf', 'acad_cell_fg': '#000000' },
-    { 'name': '윈도우 11 라이트', 'bg': '#f3f6fb', 'top': '#ffffff', 'grid': '#d8dee9', 'head_bg': '#eef3fb', 'head_fg': '#162033', 'per_bg': '#e4ebf7', 'per_fg': '#162033', 'cell_bg': '#ffffff', 'lunch_bg': '#f0f4fa', 'cell_fg': '#111827', 'hl_per': '#2563eb', 'hl_cell': '#dbeafe', 'text': '#0f172a',
-      'acad_per_bg': '#6d5bd0', 'acad_per_fg': 'white', 'acad_cell_bg': '#ece9ff', 'acad_cell_fg': '#312e81' }
+      'acad_per_bg': '#424242', 'acad_per_fg': 'white', 'acad_cell_bg': '#cfcfcf', 'acad_cell_fg': '#000000' }
 ]
-
-if not (0 <= st.session_state.theme_idx < len(themes)):
-    st.session_state.theme_idx = 0
-
+st.session_state.theme_idx = min(max(int(st.session_state.theme_idx), 0), len(themes) - 1)
 t = themes[st.session_state.theme_idx]
 
 # --- 로그인 화면 ---
@@ -127,19 +185,68 @@ if st.session_state.logged_in_user is None:
         login_pw = st.text_input("비밀번호", type="password")
         auto_login = st.checkbox("자동 로그인", value=True)
         if st.button("로그인", use_container_width=True, type="primary"):
-            if login_id and login_pw:
+            if not login_id or not login_pw:
+                st.error("아이디와 비밀번호를 모두 입력해 주세요.")
+            else:
                 u_data = check_password(login_id)
                 if u_data:
                     if u_data['password'] == login_pw:
                         st.session_state.logged_in_user = login_id
                         st.session_state.teacher = login_id
+                        st.query_params["user"] = login_id
+                        st.query_params["t"] = login_id
                         if auto_login:
-                            st.query_params["user"] = login_id 
-                            st.query_params["t"] = login_id 
+                            components.html(f"""
+                            <script>
+                                const pw = window.parent;
+                                pw.localStorage.setItem('mdgo_auto_login_user', {login_id!r});
+                                pw.localStorage.setItem('mdgo_auto_login_teacher', {login_id!r});
+                            </script>
+                            """, height=0, width=0)
+                        else:
+                            components.html("""
+                            <script>
+                                const pw = window.parent;
+                                pw.localStorage.removeItem('mdgo_auto_login_user');
+                                pw.localStorage.removeItem('mdgo_auto_login_teacher');
+                            </script>
+                            """, height=0, width=0)
                         fetch_all_data(login_id)
                         st.rerun()
-                    else: st.error("비밀번호가 일치하지 않습니다.")
-                else: st.error("등록되지 않은 선생님입니다.")
+                    else:
+                        st.error("비밀번호가 일치하지 않습니다.")
+                else:
+                    st.error("등록되지 않은 선생님입니다.")
+    with tab2:
+        st.caption("모바일에서도 계정 생성이 가능하도록 수정했습니다.")
+        new_id = st.text_input("새 아이디 (선생님 성함)", key="register_id")
+        new_pw = st.text_input("새 비밀번호", type="password", key="register_pw")
+        new_pw2 = st.text_input("비밀번호 확인", type="password", key="register_pw2")
+        if st.button("계정 생성", use_container_width=True):
+            if not new_id or not new_pw or not new_pw2:
+                st.error("모든 항목을 입력해 주세요.")
+            elif new_pw != new_pw2:
+                st.error("비밀번호 확인이 일치하지 않습니다.")
+            elif check_password(new_id):
+                st.error("이미 등록된 선생님입니다.")
+            else:
+                try:
+                    payload = {
+                        "teacher_name": new_id,
+                        "password": new_pw,
+                        "theme_idx": 0,
+                        "font_name": "맑은 고딕",
+                        "show_zero": False,
+                        "show_extra": False,
+                        "show_memo": True,
+                    }
+                    r = requests.post(f"{SUPABASE_URL}/rest/v1/users", headers=HEADERS, json=payload, timeout=5)
+                    if r.status_code in (200, 201):
+                        st.success("계정이 생성되었습니다. 로그인 탭에서 로그인해 주세요.")
+                    else:
+                        st.error("계정 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+                except Exception:
+                    st.error("계정 생성 중 오류가 발생했습니다.")
     st.stop()
 
 # --- 데이터 로드 ---
@@ -173,46 +280,76 @@ def load_academic_data():
     target_file = None
     for filepath in glob.glob("**/*학사일정*.csv", recursive=True):
         if "수업일수" not in filepath:
-            target_file = filepath; break
-    if not target_file or not os.path.exists(target_file): return {}
+            target_file = filepath
+            break
+    if not target_file or not os.path.exists(target_file):
+        return {}
+
     reader = None
     for enc in ['utf-8-sig', 'cp949', 'euc-kr', 'utf-8']:
         try:
             with open(target_file, 'r', encoding=enc) as f:
                 content = f.read()
-                if "월" in content or "일" in content or "학" in content:
-                    reader = list(csv.reader(io.StringIO(content))); break
-        except: pass
-    if not reader: return {}
+                if any(token in content for token in ["월", "일", "학사"]):
+                    reader = list(csv.reader(io.StringIO(content)))
+                    break
+        except Exception:
+            pass
+    if not reader:
+        return {}
+
+    def normalize_text(value):
+        text = str(value).replace(" ", " ").strip()
+        return re.sub(r'\s+', ' ', text)
+
     try:
         header_row_idx = 0
         for i, row in enumerate(reader):
-            if any("월" in str(cell) for cell in row):
-                header_row_idx = i; break
+            joined = " ".join(normalize_text(cell) for cell in row)
+            if re.search(r'\d+\s*월', joined):
+                header_row_idx = i
+                break
+
         header = reader[header_row_idx]
         month_cols = {}
         for col_idx, val in enumerate(header):
-            m = re.search(r'(\d+)\s*월', str(val).replace(" ", ""))
-            if m: month_cols[int(m.group(1))] = col_idx + 1
-        days_of_week = ['월', '화', '수', '목', '금', '토', '일']
+            m = re.search(r'(\d+)\s*월', normalize_text(val))
+            if m:
+                month_cols[int(m.group(1))] = col_idx
+
+        days_of_week = {'월', '화', '수', '목', '금', '토', '일'}
+        ignore_tokens = days_of_week | {'', '-', '없음', '해당없음', 'nan', 'none'}
+
         for row in reader[header_row_idx + 1:]:
-            if not row: continue
-            day_match = re.search(r'^(\d+)', str(row[0]).strip())
-            if not day_match: continue
+            if not row:
+                continue
+            day_text = normalize_text(row[0]) if len(row) > 0 else ''
+            day_match = re.match(r'^(\d{1,2})\b', day_text)
+            if not day_match:
+                continue
             day = int(day_match.group(1))
-            for month, ev_col in month_cols.items():
-                event = ""
-                for check_col in [ev_col, ev_col - 1, ev_col + 1]:
-                    if 0 <= check_col < len(row):
-                        val = str(row[check_col]).strip()
-                        if val and val not in days_of_week and not val.isdigit():
-                            event = val; break 
-                if event:
-                    year = 2026 if month >= 3 else 2027
-                    date_str = f"{year}-{month:02d}-{day:02d}"
-                    if date_str in academic_schedule: academic_schedule[date_str] += f"\n{event}"
-                    else: academic_schedule[date_str] = event
-    except: pass
+
+            for month, col_idx in month_cols.items():
+                if col_idx >= len(row):
+                    continue
+                raw_event = normalize_text(row[col_idx])
+                lowered = raw_event.lower()
+                if raw_event in ignore_tokens or lowered in ignore_tokens or raw_event.isdigit():
+                    continue
+
+                cleaned = re.sub(r'^[월화수목금토일]\s+', '', raw_event).strip(' |/')
+                if not cleaned or cleaned in days_of_week:
+                    continue
+
+                year = 2026 if month >= 3 else 2027
+                date_str = f"{year}-{month:02d}-{day:02d}"
+                if date_str in academic_schedule:
+                    academic_schedule[date_str] += "\n" + cleaned
+                else:
+                    academic_schedule[date_str] = cleaned
+    except Exception:
+        return {}
+
     return academic_schedule
 
 teachers_data = load_csv()
@@ -379,6 +516,13 @@ def display_dashboard():
                 requests.patch(f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}", headers=HEADERS, json={"font_name": new_font}); st.session_state.font_name = new_font; st.rerun()
             st.markdown("---")
             if st.button("🔓 로그아웃", type="primary", use_container_width=True):
+                components.html("""
+                <script>
+                    const pw = window.parent;
+                    pw.localStorage.removeItem('mdgo_auto_login_user');
+                    pw.localStorage.removeItem('mdgo_auto_login_teacher');
+                </script>
+                """, height=0, width=0)
                 st.session_state.logged_in_user = None; st.session_state.teacher = "표민호"; st.session_state.data_loaded = False; st.query_params.clear(); st.rerun()
 
     now_kst = datetime.now(kst_tz) 
