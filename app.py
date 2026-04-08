@@ -107,8 +107,14 @@ themes = [
     { 'name': '포레스트', 'bg': '#e9ede7', 'top': '#2c5344', 'grid': '#d0d8d3', 'head_bg': '#3b6a57', 'head_fg': 'white', 'per_bg': '#8ba89a', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d0e8d7', 'cell_fg': '#1a3026', 'hl_per': '#d35400', 'hl_cell': '#f9e79f', 'text': '#1a3026',
       'acad_per_bg': '#d35400', 'acad_per_fg': 'white', 'acad_cell_bg': '#fad7a1', 'acad_cell_fg': '#6e2c00' },
     { 'name': '모노톤', 'bg': '#f5f5f5', 'top': '#333333', 'grid': '#e0e0e0', 'head_bg': '#555555', 'head_fg': 'white', 'per_bg': '#999999', 'per_fg': 'white', 'cell_bg': '#ffffff', 'lunch_bg': '#d4d4d4', 'cell_fg': '#000000', 'hl_per': '#d90429', 'hl_cell': '#edf2f4', 'text': '#222222',
-      'acad_per_bg': '#424242', 'acad_per_fg': 'white', 'acad_cell_bg': '#cfcfcf', 'acad_cell_fg': '#000000' }
+      'acad_per_bg': '#424242', 'acad_per_fg': 'white', 'acad_cell_bg': '#cfcfcf', 'acad_cell_fg': '#000000' },
+    { 'name': '윈도우 11 라이트', 'bg': '#f3f6fb', 'top': '#ffffff', 'grid': '#d8dee9', 'head_bg': '#eef3fb', 'head_fg': '#162033', 'per_bg': '#e4ebf7', 'per_fg': '#162033', 'cell_bg': '#ffffff', 'lunch_bg': '#f0f4fa', 'cell_fg': '#111827', 'hl_per': '#2563eb', 'hl_cell': '#dbeafe', 'text': '#0f172a',
+      'acad_per_bg': '#6d5bd0', 'acad_per_fg': 'white', 'acad_cell_bg': '#ece9ff', 'acad_cell_fg': '#312e81' }
 ]
+
+if not (0 <= st.session_state.theme_idx < len(themes)):
+    st.session_state.theme_idx = 0
+
 t = themes[st.session_state.theme_idx]
 
 # --- 로그인 화면 ---
