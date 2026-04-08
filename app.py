@@ -18,7 +18,8 @@ st.set_page_config(page_title="명덕외고 모바일 시간표", page_icon="�
 # =========================================================
 # 2. PWA(웹앱) 설정, 자동 로그인 복구, 브랜딩 숨김
 # =========================================================
-components.html("""
+components.html(
+    """
 <script>
     const parentWindow = window.parent;
     const doc = parentWindow.document;
@@ -105,7 +106,10 @@ components.html("""
         setTimeout(hideBranding, 1200);
     }
 </script>
-""", height=0, width=0)
+""",
+    height=0,
+    width=0,
+)
 
 # =========================================================
 # 3. Supabase 설정
@@ -117,18 +121,136 @@ HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
-    "Prefer": "return=representation"
+    "Prefer": "return=representation",
 }
 
 # =========================================================
-# 4. 공통 함수
+# 4. 공통 상수
 # =========================================================
+kst_tz = timezone(timedelta(hours=9))
+days = ["월", "화", "수", "목", "금"]
+font_list = ["맑은 고딕", "바탕", "돋움", "굴림", "Arial"]
+
+period_times = [
+    ("학사일정", "\n"),
+    ("조회", "07:40\n08:00"),
+    ("1교시", "08:00\n08:50"),
+    ("2교시", "09:00\n09:50"),
+    ("3교시", "10:00\n10:50"),
+    ("4교시", "11:00\n11:50"),
+    ("점심", "11:50\n12:40"),
+    ("5교시", "12:40\n13:30"),
+    ("6교시", "13:40\n14:30"),
+    ("7교시", "14:40\n15:30"),
+    ("8교시", "16:00\n16:50"),
+    ("9교시", "17:00\n17:50"),
+]
+
+themes = [
+    {
+        "name": "모던 다크",
+        "bg": "#2c3e50", "top": "#1a252f", "grid": "#34495e",
+        "head_bg": "#2c3e50", "head_fg": "white",
+        "per_bg": "#7f8c8d", "per_fg": "white",
+        "cell_bg": "#ecf0f1", "lunch_bg": "#95a5a6", "cell_fg": "#2c3e50",
+        "hl_per": "#e74c3c", "hl_cell": "#f1c40f", "text": "#ffffff",
+        "acad_per_bg": "#8e44ad", "acad_per_fg": "white",
+        "acad_cell_bg": "#413a52", "acad_cell_fg": "#f1c40f",
+    },
+    {
+        "name": "웜 파스텔",
+        "bg": "#fdf6e3", "top": "#e4d5b7", "grid": "#eee8d5",
+        "head_bg": "#d6caba", "head_fg": "#333333",
+        "per_bg": "#e8e2d2", "per_fg": "#333333",
+        "cell_bg": "#ffffff", "lunch_bg": "#f0e6d2", "cell_fg": "#4a4a4a",
+        "hl_per": "#ffb6b9", "hl_cell": "#fae3d9", "text": "#333333",
+        "acad_per_bg": "#ffdac1", "acad_per_fg": "#333333",
+        "acad_cell_bg": "#ffe5d9", "acad_cell_fg": "#5c4d3c",
+    },
+    {
+        "name": "클래식 블루",
+        "bg": "#e0eaf5", "top": "#4a90e2", "grid": "#d0dceb",
+        "head_bg": "#5c9ce6", "head_fg": "white",
+        "per_bg": "#a8c2e0", "per_fg": "#333333",
+        "cell_bg": "#ffffff", "lunch_bg": "#d0e0f0", "cell_fg": "#2c3e50",
+        "hl_per": "#f39c12", "hl_cell": "#fde3a7", "text": "#2c3e50",
+        "acad_per_bg": "#1abc9c", "acad_per_fg": "white",
+        "acad_cell_bg": "#d1f2eb", "acad_cell_fg": "#0e6251",
+    },
+    {
+        "name": "포레스트",
+        "bg": "#e9ede7", "top": "#2c5344", "grid": "#d0d8d3",
+        "head_bg": "#3b6a57", "head_fg": "white",
+        "per_bg": "#8ba89a", "per_fg": "white",
+        "cell_bg": "#ffffff", "lunch_bg": "#d0e8d7", "cell_fg": "#1a3026",
+        "hl_per": "#d35400", "hl_cell": "#f9e79f", "text": "#1a3026",
+        "acad_per_bg": "#d35400", "acad_per_fg": "white",
+        "acad_cell_bg": "#fad7a1", "acad_cell_fg": "#6e2c00",
+    },
+    {
+        "name": "모노톤",
+        "bg": "#f5f5f5", "top": "#333333", "grid": "#e0e0e0",
+        "head_bg": "#555555", "head_fg": "white",
+        "per_bg": "#999999", "per_fg": "white",
+        "cell_bg": "#ffffff", "lunch_bg": "#d4d4d4", "cell_fg": "#000000",
+        "hl_per": "#d90429", "hl_cell": "#edf2f4", "text": "#222222",
+        "acad_per_bg": "#424242", "acad_per_fg": "white",
+        "acad_cell_bg": "#cfcfcf", "acad_cell_fg": "#000000",
+    },
+    {
+        "name": "윈도우 11 라이트",
+        "bg": "#f3f7fb", "top": "#e7eef8", "grid": "#d6e2f1",
+        "head_bg": "#dbe8f7", "head_fg": "#1f2d3d",
+        "per_bg": "#c7d8ee", "per_fg": "#1f2d3d",
+        "cell_bg": "#ffffff", "lunch_bg": "#edf3fa", "cell_fg": "#1f2d3d",
+        "hl_per": "#2563eb", "hl_cell": "#dbeafe", "text": "#1f2d3d",
+        "acad_per_bg": "#93c5fd", "acad_per_fg": "#0f172a",
+        "acad_cell_bg": "#eff6ff", "acad_cell_fg": "#1e3a8a",
+    },
+]
+
+# =========================================================
+# 5. 공통 함수
+# =========================================================
+def safe_fragment_rerun():
+    if "scope" in inspect.signature(st.rerun).parameters:
+        st.rerun(scope="fragment")
+    else:
+        st.rerun()
+
+
+def check_password(user_id):
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{user_id}",
+            headers=HEADERS,
+            timeout=3,
+        )
+        if r.status_code == 200 and len(r.json()) > 0:
+            return r.json()[0]
+    except Exception:
+        pass
+    return None
+
+
+def update_db_bg(url, headers, user, key, val):
+    try:
+        requests.patch(
+            f"{url}/rest/v1/users?teacher_name=eq.{user}",
+            headers=headers,
+            json={key: val},
+            timeout=3,
+        )
+    except Exception:
+        pass
+
+
 def fetch_all_data(user_id):
     try:
         r_user = requests.get(
             f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{user_id}",
             headers=HEADERS,
-            timeout=3
+            timeout=3,
         )
         if r_user.status_code == 200 and len(r_user.json()) > 0:
             u_data = r_user.json()[0]
@@ -143,17 +265,19 @@ def fetch_all_data(user_id):
         r_cust = requests.get(
             f"{SUPABASE_URL}/rest/v1/custom_schedule?teacher_name=eq.{target_teacher}",
             headers=HEADERS,
-            timeout=3
+            timeout=3,
         )
         if r_cust.status_code == 200:
-            st.session_state.custom_data = {row["date_key"]: row["subject"] for row in r_cust.json()}
+            st.session_state.custom_data = {
+                row["date_key"]: row["subject"] for row in r_cust.json()
+            }
         else:
             st.session_state.custom_data = {}
 
         r_memo = requests.get(
             f"{SUPABASE_URL}/rest/v1/memos?teacher_name=eq.{user_id}&order=created_at.desc",
             headers=HEADERS,
-            timeout=3
+            timeout=3,
         )
         if r_memo.status_code == 200:
             st.session_state.memos_list = r_memo.json()
@@ -161,56 +285,28 @@ def fetch_all_data(user_id):
             st.session_state.memos_list = []
 
         st.session_state.data_loaded = True
+
     except Exception:
         st.session_state.custom_data = st.session_state.get("custom_data", {})
         st.session_state.memos_list = st.session_state.get("memos_list", [])
 
-def update_db_bg(url, headers, user, key, val):
-    try:
-        requests.patch(
-            f"{url}/rest/v1/users?teacher_name=eq.{user}",
-            headers=headers,
-            json={key: val},
-            timeout=3
-        )
-    except Exception:
-        pass
 
-def check_password(user_id):
-    try:
-        r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{user_id}",
-            headers=HEADERS,
-            timeout=3
-        )
-        if r.status_code == 200 and len(r.json()) > 0:
-            return r.json()[0]
-    except Exception:
-        pass
-    return None
+def normalize_text(value):
+    text = str(value).replace("\xa0", " ").strip()
+    return re.sub(r"\s+", " ", text)
 
-def safe_fragment_rerun():
-    if "scope" in inspect.signature(st.rerun).parameters:
-        st.rerun(scope="fragment")
-    else:
-        st.rerun()
 
 # =========================================================
-# 5. URL 파라미터 / 세션 초기화
+# 6. URL 파라미터 / 세션 초기화
 # =========================================================
 params = st.query_params
-
-if "user" in params and "logged_in_user" not in st.session_state:
-    st.session_state.logged_in_user = params["user"]
-if "t" in params:
-    st.session_state.teacher = params["t"]
 
 if "logged_in_user" not in st.session_state:
     st.session_state.logged_in_user = None
 if "week_offset" not in st.session_state:
     st.session_state.week_offset = 0
 if "teacher" not in st.session_state:
-    st.session_state.teacher = st.session_state.logged_in_user if st.session_state.logged_in_user else "표민호"
+    st.session_state.teacher = "표민호"
 if "theme_idx" not in st.session_state:
     st.session_state.theme_idx = 0
 if "font_name" not in st.session_state:
@@ -225,93 +321,35 @@ if "custom_data" not in st.session_state:
     st.session_state.custom_data = {}
 if "memos_list" not in st.session_state:
     st.session_state.memos_list = []
+if "data_loaded" not in st.session_state:
+    st.session_state.data_loaded = False
 
-# =========================================================
-# 6. 테마 목록
-# =========================================================
-themes = [
-    {
-        "name": "모던 다크",
-        "bg": "#2c3e50", "top": "#1a252f", "grid": "#34495e",
-        "head_bg": "#2c3e50", "head_fg": "white",
-        "per_bg": "#7f8c8d", "per_fg": "white",
-        "cell_bg": "#ecf0f1", "lunch_bg": "#95a5a6", "cell_fg": "#2c3e50",
-        "hl_per": "#e74c3c", "hl_cell": "#f1c40f", "text": "#ffffff",
-        "acad_per_bg": "#8e44ad", "acad_per_fg": "white",
-        "acad_cell_bg": "#413a52", "acad_cell_fg": "#f1c40f"
-    },
-    {
-        "name": "웜 파스텔",
-        "bg": "#fdf6e3", "top": "#e4d5b7", "grid": "#eee8d5",
-        "head_bg": "#d6caba", "head_fg": "#333333",
-        "per_bg": "#e8e2d2", "per_fg": "#333333",
-        "cell_bg": "#ffffff", "lunch_bg": "#f0e6d2", "cell_fg": "#4a4a4a",
-        "hl_per": "#ffb6b9", "hl_cell": "#fae3d9", "text": "#333333",
-        "acad_per_bg": "#ffdac1", "acad_per_fg": "#333333",
-        "acad_cell_bg": "#ffe5d9", "acad_cell_fg": "#5c4d3c"
-    },
-    {
-        "name": "클래식 블루",
-        "bg": "#e0eaf5", "top": "#4a90e2", "grid": "#d0dceb",
-        "head_bg": "#5c9ce6", "head_fg": "white",
-        "per_bg": "#a8c2e0", "per_fg": "#333333",
-        "cell_bg": "#ffffff", "lunch_bg": "#d0e0f0", "cell_fg": "#2c3e50",
-        "hl_per": "#f39c12", "hl_cell": "#fde3a7", "text": "#2c3e50",
-        "acad_per_bg": "#1abc9c", "acad_per_fg": "white",
-        "acad_cell_bg": "#d1f2eb", "acad_cell_fg": "#0e6251"
-    },
-    {
-        "name": "포레스트",
-        "bg": "#e9ede7", "top": "#2c5344", "grid": "#d0d8d3",
-        "head_bg": "#3b6a57", "head_fg": "white",
-        "per_bg": "#8ba89a", "per_fg": "white",
-        "cell_bg": "#ffffff", "lunch_bg": "#d0e8d7", "cell_fg": "#1a3026",
-        "hl_per": "#d35400", "hl_cell": "#f9e79f", "text": "#1a3026",
-        "acad_per_bg": "#d35400", "acad_per_fg": "white",
-        "acad_cell_bg": "#fad7a1", "acad_cell_fg": "#6e2c00"
-    },
-    {
-        "name": "모노톤",
-        "bg": "#f5f5f5", "top": "#333333", "grid": "#e0e0e0",
-        "head_bg": "#555555", "head_fg": "white",
-        "per_bg": "#999999", "per_fg": "white",
-        "cell_bg": "#ffffff", "lunch_bg": "#d4d4d4", "cell_fg": "#000000",
-        "hl_per": "#d90429", "hl_cell": "#edf2f4", "text": "#222222",
-        "acad_per_bg": "#424242", "acad_per_fg": "white",
-        "acad_cell_bg": "#cfcfcf", "acad_cell_fg": "#000000"
-    },
-    {
-        "name": "윈도우 11 라이트",
-        "bg": "#f3f7fb", "top": "#e7eef8", "grid": "#d6e2f1",
-        "head_bg": "#dbe8f7", "head_fg": "#1f2d3d",
-        "per_bg": "#c7d8ee", "per_fg": "#1f2d3d",
-        "cell_bg": "#ffffff", "lunch_bg": "#edf3fa", "cell_fg": "#1f2d3d",
-        "hl_per": "#2563eb", "hl_cell": "#dbeafe", "text": "#1f2d3d",
-        "acad_per_bg": "#93c5fd", "acad_per_fg": "#0f172a",
-        "acad_cell_bg": "#eff6ff", "acad_cell_fg": "#1e3a8a"
-    }
-]
+if "user" in params and st.session_state.logged_in_user is None:
+    st.session_state.logged_in_user = params["user"]
+
+if "t" in params:
+    st.session_state.teacher = params["t"]
+elif st.session_state.logged_in_user and st.session_state.teacher == "표민호":
+    st.session_state.teacher = st.session_state.logged_in_user
 
 st.session_state.theme_idx = min(max(int(st.session_state.theme_idx), 0), len(themes) - 1)
+
+if st.session_state.logged_in_user and not st.session_state.data_loaded:
+    fetch_all_data(st.session_state.logged_in_user)
+    st.session_state.theme_idx = min(max(int(st.session_state.theme_idx), 0), len(themes) - 1)
+
 t = themes[st.session_state.theme_idx]
 
 # =========================================================
-# 7. 로그인 상태일 때 초기 데이터 로드
-# =========================================================
-if st.session_state.logged_in_user and not st.session_state.get("data_loaded", False):
-    fetch_all_data(st.session_state.logged_in_user)
-    st.session_state.theme_idx = min(max(int(st.session_state.theme_idx), 0), len(themes) - 1)
-    t = themes[st.session_state.theme_idx]
-
-# =========================================================
-# 8. 로그인 화면
+# 7. 로그인 화면
 # =========================================================
 if st.session_state.logged_in_user is None:
     st.markdown(
         "<div style='text-align:center; padding: 2rem 0 1rem 0;'><div style='font-size: 3rem;'>🏫</div><h1 style='font-size: 26px; font-weight: 800;'>명덕외고 뷰어</h1></div>",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
     st.info("💡 입력/수정은 PC버전을 이용해 주세요.")
+
     tab1, tab2 = st.tabs(["🔐 로그인", "📝 새 계정 등록"])
 
     with tab1:
@@ -324,37 +362,46 @@ if st.session_state.logged_in_user is None:
                 st.error("아이디와 비밀번호를 모두 입력해 주세요.")
             else:
                 u_data = check_password(login_id)
-                if u_data:
-                    if u_data["password"] == login_pw:
-                        st.session_state.logged_in_user = login_id
-                        st.session_state.teacher = login_id
-                        st.query_params["user"] = login_id
-                        st.query_params["t"] = login_id
-
-                        if auto_login:
-                            components.html(f"""
-                            <script>
-                                const pw = window.parent;
-                                pw.localStorage.setItem('mdgo_auto_login_user', {login_id!r});
-                                pw.localStorage.setItem('mdgo_auto_login_teacher', {login_id!r});
-                            </script>
-                            """, height=0, width=0)
-                        else:
-                            components.html("""
-                            <script>
-                                const pw = window.parent;
-                                pw.localStorage.removeItem('mdgo_auto_login_user');
-                                pw.localStorage.removeItem('mdgo_auto_login_teacher');
-                            </script>
-                            """, height=0, width=0)
-
-                        fetch_all_data(login_id)
-                        st.session_state.theme_idx = min(max(int(st.session_state.theme_idx), 0), len(themes) - 1)
-                        st.rerun()
-                    else:
-                        st.error("비밀번호가 일치하지 않습니다.")
-                else:
+                if not u_data:
                     st.error("등록되지 않은 선생님입니다.")
+                elif u_data["password"] != login_pw:
+                    st.error("비밀번호가 일치하지 않습니다.")
+                else:
+                    st.session_state.logged_in_user = login_id
+                    st.session_state.teacher = login_id
+                    st.query_params["user"] = login_id
+                    st.query_params["t"] = login_id
+
+                    if auto_login:
+                        components.html(
+                            f"""
+<script>
+    const pw = window.parent;
+    pw.localStorage.setItem('mdgo_auto_login_user', {login_id!r});
+    pw.localStorage.setItem('mdgo_auto_login_teacher', {login_id!r});
+</script>
+""",
+                            height=0,
+                            width=0,
+                        )
+                    else:
+                        components.html(
+                            """
+<script>
+    const pw = window.parent;
+    pw.localStorage.removeItem('mdgo_auto_login_user');
+    pw.localStorage.removeItem('mdgo_auto_login_teacher');
+</script>
+""",
+                            height=0,
+                            width=0,
+                        )
+
+                    fetch_all_data(login_id)
+                    st.session_state.theme_idx = min(
+                        max(int(st.session_state.theme_idx), 0), len(themes) - 1
+                    )
+                    st.rerun()
 
     with tab2:
         st.caption("모바일에서도 계정 생성이 가능하도록 수정했습니다.")
@@ -378,13 +425,13 @@ if st.session_state.logged_in_user is None:
                         "font_name": "맑은 고딕",
                         "show_zero": False,
                         "show_extra": False,
-                        "show_memo": True
+                        "show_memo": True,
                     }
                     r = requests.post(
                         f"{SUPABASE_URL}/rest/v1/users",
                         headers=HEADERS,
                         json=payload,
-                        timeout=5
+                        timeout=5,
                     )
                     if r.status_code in (200, 201):
                         st.success("계정이 생성되었습니다. 로그인 탭에서 로그인해 주세요.")
@@ -396,11 +443,10 @@ if st.session_state.logged_in_user is None:
     st.stop()
 
 # =========================================================
-# 9. 정적 데이터 로드
+# 8. 데이터 로드
 # =========================================================
 @st.cache_data
 def load_csv():
-    days = ["월", "화", "수", "목", "금"]
     t_data = {}
     base_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(base_dir, "data.csv")
@@ -425,6 +471,7 @@ def load_csv():
         except Exception:
             pass
     return t_data
+
 
 @st.cache_data
 def load_academic_data():
@@ -453,34 +500,30 @@ def load_academic_data():
     if not reader:
         return {}
 
-    def normalize_text(value):
-        text = str(value).replace(" ", " ").strip()
-        return re.sub(r"\\s+", " ", text)
-
     try:
         header_row_idx = 0
         for i, row in enumerate(reader):
             joined = " ".join(normalize_text(cell) for cell in row)
-            if re.search(r"\\d+\\s*월", joined):
+            if re.search(r"\d+\s*월", joined):
                 header_row_idx = i
                 break
 
         header = reader[header_row_idx]
         month_cols = {}
         for col_idx, val in enumerate(header):
-            m = re.search(r"(\\d+)\\s*월", normalize_text(val))
+            m = re.search(r"(\d+)\s*월", normalize_text(val))
             if m:
                 month_cols[int(m.group(1))] = col_idx
 
-        days_of_week = {"월", "화", "수", "목", "금", "토", "일"}
-        ignore_tokens = days_of_week | {"", "-", "없음", "해당없음", "nan", "none"}
+        days_of_week_set = {"월", "화", "수", "목", "금", "토", "일"}
+        ignore_tokens = days_of_week_set | {"", "-", "없음", "해당없음", "nan", "none"}
 
         for row in reader[header_row_idx + 1:]:
             if not row:
                 continue
 
             day_text = normalize_text(row[0]) if len(row) > 0 else ""
-            day_match = re.match(r"^(\\d{1,2})\\b", day_text)
+            day_match = re.match(r"^(\d{1,2})\b", day_text)
             if not day_match:
                 continue
 
@@ -496,15 +539,15 @@ def load_academic_data():
                 if raw_event in ignore_tokens or lowered in ignore_tokens or raw_event.isdigit():
                     continue
 
-                cleaned = re.sub(r"^[월화수목금토일]\\s+", "", raw_event).strip(" |/")
-                if not cleaned or cleaned in days_of_week:
+                cleaned = re.sub(r"^[월화수목금토일]\s+", "", raw_event).strip(" |/")
+                if not cleaned or cleaned in days_of_week_set:
                     continue
 
                 year = 2026 if month >= 3 else 2027
                 date_str = f"{year}-{month:02d}-{day:02d}"
 
                 if date_str in academic_schedule:
-                    academic_schedule[date_str] += "\\n" + cleaned
+                    academic_schedule[date_str] += "\n" + cleaned
                 else:
                     academic_schedule[date_str] = cleaned
 
@@ -513,31 +556,15 @@ def load_academic_data():
 
     return academic_schedule
 
+
 teachers_data = load_csv()
 academic_data = load_academic_data()
-days = ["월", "화", "수", "목", "금"]
-
-period_times = [
-    ("학사일정", "\\n"),
-    ("조회", "07:40\\n08:00"),
-    ("1교시", "08:00\\n08:50"),
-    ("2교시", "09:00\\n09:50"),
-    ("3교시", "10:00\\n10:50"),
-    ("4교시", "11:00\\n11:50"),
-    ("점심", "11:50\\n12:40"),
-    ("5교시", "12:40\\n13:30"),
-    ("6교시", "13:40\\n14:30"),
-    ("7교시", "14:40\\n15:30"),
-    ("8교시", "16:00\\n16:50"),
-    ("9교시", "17:00\\n17:50")
-]
-
-kst_tz = timezone(timedelta(hours=9))
 
 # =========================================================
-# 10. CSS
+# 9. CSS
 # =========================================================
-st.markdown(f"""
+st.markdown(
+    f"""
 <style>
     html, body, .stApp {{
         touch-action: auto !important;
@@ -697,28 +724,22 @@ st.markdown(f"""
         gap: 8px;
         margin-bottom: 8px;
     }}
-    .memo-section-header {{
-        font-size: 12px;
-        font-weight: 800;
-        padding: 4px 6px;
-        margin-top: 10px;
-        border-radius: 4px;
-        opacity: 0.9;
-    }}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # =========================================================
-# 11. 헤더
+# 10. 헤더
 # =========================================================
 u = st.session_state.logged_in_user
 st.markdown(
     f"<div class='header-container'><div style='font-size:16px; font-weight:800; white-space:nowrap;'>🏫 명덕외고 시간표 뷰어 <span style='font-size:13px; font-weight:normal;'>({u} 선생님)</span></div></div>",
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 # =========================================================
-# 12. 메인 대시보드
+# 11. 메인 대시보드
 # =========================================================
 @st.fragment
 def display_dashboard():
@@ -745,7 +766,10 @@ def display_dashboard():
 
     with c4:
         with st.popover("📅", use_container_width=True):
-            st.markdown("<div style='font-size:13px; font-weight:bold; margin-bottom:5px; color:#333;'>이동할 날짜 선택</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div style='font-size:13px; font-weight:bold; margin-bottom:5px; color:#333;'>이동할 날짜 선택</div>",
+                unsafe_allow_html=True,
+            )
             now_date = datetime.now(kst_tz).date()
             current_view_date = now_date + timedelta(weeks=st.session_state.week_offset)
             selected_date = st.date_input("날짜 선택", value=current_view_date, label_visibility="collapsed")
@@ -770,7 +794,7 @@ def display_dashboard():
             threading.Thread(
                 target=update_db_bg,
                 args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_memo", st.session_state.show_memo),
-                daemon=True
+                daemon=True,
             ).start()
             safe_fragment_rerun()
 
@@ -781,7 +805,7 @@ def display_dashboard():
             threading.Thread(
                 target=update_db_bg,
                 args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_zero", st.session_state.show_zero),
-                daemon=True
+                daemon=True,
             ).start()
             safe_fragment_rerun()
 
@@ -792,32 +816,41 @@ def display_dashboard():
             threading.Thread(
                 target=update_db_bg,
                 args=(SUPABASE_URL, HEADERS, st.session_state.logged_in_user, "show_extra", st.session_state.show_extra),
-                daemon=True
+                daemon=True,
             ).start()
             safe_fragment_rerun()
 
     with c9:
         with st.popover("⚙️", use_container_width=True):
-            st.markdown("<div style='font-size:14px; font-weight:bold; margin-bottom:8px;'>📱 앱 설치 (전체화면)</div>", unsafe_allow_html=True)
-            st.markdown("""
-            <div class='install-guide-row'><div>💡</div><div><b>아이폰(Safari):</b> 하단 [공유(⍐)] ➔ <b>'홈 화면에 추가'</b></div></div>
-            <div class='install-guide-row'><div>💡</div><div><b>갤럭시(Chrome):</b> 상단 [점 3개(⋮)] ➔ <b>'홈 화면에 추가'</b></div></div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                "<div style='font-size:14px; font-weight:bold; margin-bottom:8px;'>📱 앱 설치 (전체화면)</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                """
+                <div class='install-guide-row'><div>💡</div><div><b>아이폰(Safari):</b> 하단 [공유(⍐)] ➔ <b>'홈 화면에 추가'</b></div></div>
+                <div class='install-guide-row'><div>💡</div><div><b>갤럭시(Chrome):</b> 상단 [점 3개(⋮)] ➔ <b>'홈 화면에 추가'</b></div></div>
+                """,
+                unsafe_allow_html=True,
+            )
             st.markdown("---")
 
-            new_theme = st.selectbox("🎨 테마 변경", [th["name"] for th in themes], index=st.session_state.theme_idx)
+            new_theme = st.selectbox(
+                "🎨 테마 변경",
+                [th["name"] for th in themes],
+                index=st.session_state.theme_idx,
+            )
             if new_theme != themes[st.session_state.theme_idx]["name"]:
                 new_idx = [th["name"] for th in themes].index(new_theme)
                 requests.patch(
                     f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}",
                     headers=HEADERS,
                     json={"theme_idx": new_idx},
-                    timeout=3
+                    timeout=3,
                 )
                 st.session_state.theme_idx = new_idx
                 st.rerun()
 
-            font_list = ["맑은 고딕", "바탕", "돋움", "굴림", "Arial"]
             font_index = font_list.index(st.session_state.font_name) if st.session_state.font_name in font_list else 0
             new_font = st.selectbox("A 폰트 변경", font_list, index=font_index)
 
@@ -826,7 +859,7 @@ def display_dashboard():
                     f"{SUPABASE_URL}/rest/v1/users?teacher_name=eq.{st.session_state.logged_in_user}",
                     headers=HEADERS,
                     json={"font_name": new_font},
-                    timeout=3
+                    timeout=3,
                 )
                 st.session_state.font_name = new_font
                 st.rerun()
@@ -834,13 +867,17 @@ def display_dashboard():
             st.markdown("---")
 
             if st.button("🔓 로그아웃", type="primary", use_container_width=True):
-                components.html("""
-                <script>
-                    const pw = window.parent;
-                    pw.localStorage.removeItem('mdgo_auto_login_user');
-                    pw.localStorage.removeItem('mdgo_auto_login_teacher');
-                </script>
-                """, height=0, width=0)
+                components.html(
+                    """
+<script>
+    const pw = window.parent;
+    pw.localStorage.removeItem('mdgo_auto_login_user');
+    pw.localStorage.removeItem('mdgo_auto_login_teacher');
+</script>
+""",
+                    height=0,
+                    width=0,
+                )
                 st.session_state.logged_in_user = None
                 st.session_state.teacher = "표민호"
                 st.session_state.data_loaded = False
@@ -850,7 +887,7 @@ def display_dashboard():
     now_kst = datetime.now(kst_tz)
     target_date = now_kst + timedelta(weeks=st.session_state.week_offset)
     monday = target_date - timedelta(days=target_date.weekday())
-    is_current_week = (st.session_state.week_offset == 0)
+    is_current_week = st.session_state.week_offset == 0
     today_idx = now_kst.weekday()
     now_mins = now_kst.hour * 60 + now_kst.minute
 
@@ -858,7 +895,7 @@ def display_dashboard():
     for idx, (p_name, t_range) in enumerate(period_times):
         if p_name == "학사일정":
             continue
-        start_str, end_str = t_range.split("\\n")
+        start_str, end_str = t_range.split("\n")
         h1, m1 = map(int, start_str.split(":"))
         h2, m2 = map(int, end_str.split(":"))
         s_mins, e_mins = h1 * 60 + m1, h2 * 60 + m2
@@ -871,8 +908,12 @@ def display_dashboard():
             break
 
     html_parts = []
-    html_parts.append(f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'><table class='mobile-table'>")
-    html_parts.append(f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'><th style='width: 13%; font-size:14px;'>교시</th>")
+    html_parts.append(
+        f"<div style='width:100%; overflow-x:auto; background-color:{t['grid']}; border-radius:4px;'><table class='mobile-table'>"
+    )
+    html_parts.append(
+        f"<tr style='background-color:{t['head_bg']}; color:{t['head_fg']};'><th style='width: 13%; font-size:14px;'>교시</th>"
+    )
 
     for col, day in enumerate(days):
         date_str = (monday + timedelta(days=col)).strftime("%m/%d")
@@ -905,10 +946,17 @@ def display_dashboard():
 
         time_html = ""
         if period != "학사일정":
-            start_t, end_t = time_str.split("\\n")
-            time_html = f"<div style='line-height:1.0; width:100%; padding:0 2px;'><div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div><div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div></div>"
+            start_t, end_t = time_str.split("\n")
+            time_html = (
+                f"<div style='line-height:1.0; width:100%; padding:0 2px;'>"
+                f"<div style='text-align:left; font-size:11px; font-weight:normal;'>{start_t}~</div>"
+                f"<div style='text-align:right; font-size:11px; font-weight:normal;'>{end_t}</div>"
+                f"</div>"
+            )
 
-        html_parts.append(f"<td class='{row_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div>{time_html}</td>")
+        html_parts.append(
+            f"<td class='{row_class}' style='background-color:{p_bg}; color:{p_fg};'><div style='line-height:1.1; font-size:14px; margin-bottom:2px;'><b>{period}</b></div>{time_html}</td>"
+        )
 
         for col, day in enumerate(days):
             row_num = row_idx + 1
@@ -917,22 +965,31 @@ def display_dashboard():
 
             subject = ""
             if period == "학사일정":
-                subject = academic_data.get(date_str, "").replace(" / ", "\\n")
+                subject = academic_data.get(date_str, "").replace(" / ", "\n")
             elif period not in ["점심", "조회"]:
                 s_idx = row_num - 3 if row_num < 7 else row_num - 4
                 if 0 <= s_idx < len(base_schedule.get(day, [])):
                     subject = base_schedule[day][s_idx]
 
-            is_strike, is_custom, custom_color = False, False, None
+            is_strike = False
+            is_custom = False
+            custom_color = None
+
             if date_key in custom_data:
                 val = custom_data[date_key]
                 if val == "__STRIKE__":
-                    is_strike, is_custom = True, True
+                    is_strike = True
+                    is_custom = True
                 else:
                     is_custom = True
-                    m = re.match(r'^<span style=[\\'\\"]color:([^"\\']+)[\\'\\"]>(.*)</span>$', str(val), re.DOTALL | re.IGNORECASE)
-                    if m:
-                        custom_color, subject = m.group(1), m.group(2)
+                    match = re.match(
+                        r"^<span style=['\"]color:([^\"']+)['\"]>(.*)</span>$",
+                        str(val),
+                        re.DOTALL | re.IGNORECASE,
+                    )
+                    if match:
+                        custom_color = match.group(1)
+                        subject = match.group(2)
                     else:
                         subject = str(val)
 
@@ -962,23 +1019,27 @@ def display_dashboard():
                 elif row_idx == preview_row_idx:
                     cell_class = "hl-border-yellow"
 
-            font_sz_str, line_height = "14px", "1.2"
+            font_sz_str = "14px"
+            line_height = "1.2"
+
             if period == "학사일정":
                 font_sz = 12
                 if subject:
-                    lines = subject.split("\\n")
+                    lines = subject.split("\n")
                     num_lines = len(lines)
                     max_len = max([len(l) for l in lines] if lines else [0])
                     if num_lines >= 4 or max_len > 9:
                         font_sz = 9
                     elif num_lines >= 3 or max_len > 6:
                         font_sz = 10
-                font_sz_str, line_height = f"{font_sz}px", "1.1"
+                font_sz_str = f"{font_sz}px"
+                line_height = "1.1"
 
-            display = subject.replace("\\n", "<br>") if subject else ""
+            display = subject.replace("\n", "<br>") if subject else ""
             html_parts.append(
                 f"<td class='{cell_class}' style='background-color:{bg}; color:{fg};'><div style='text-decoration:{deco}; font-size:{font_sz_str}; width:100%; display:flex; align-items:center; justify-content:center; height:100%; line-height:{line_height}; word-break:keep-all; overflow-wrap:break-word; white-space:normal; padding:2px;'>{display}</div></td>"
             )
+
         html_parts.append("</tr>")
 
     html_parts.append("</table></div>")
@@ -990,20 +1051,24 @@ def display_dashboard():
 
         if memos_list:
             memos_list.sort(key=lambda m: (m.get("is_strike", False), not m.get("is_important", False)))
-            for i, m in enumerate(memos_list):
-                m["display_num"] = len(memos_list) - i
+            for i, memo in enumerate(memos_list):
+                memo["display_num"] = len(memos_list) - i
 
-            for m in memos_list:
-                num = m["display_num"]
-                text = m.get("memo_text", "")
-                is_strike = m.get("is_strike", False)
-                is_imp = m.get("is_important", False)
-                raw_time = m.get("created_at", "")
+            for memo in memos_list:
+                num = memo["display_num"]
+                text = memo.get("memo_text", "")
+                is_strike = memo.get("is_strike", False)
+                is_imp = memo.get("is_important", False)
+                raw_time = memo.get("created_at", "")
                 time_str = ""
 
                 if raw_time:
                     try:
-                        time_str = datetime.fromisoformat(raw_time.replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=9))).strftime("%y.%m.%d %H:%M")
+                        time_str = (
+                            datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+                            .astimezone(kst_tz)
+                            .strftime("%y.%m.%d %H:%M")
+                        )
                     except Exception:
                         time_str = raw_time[:10]
 
@@ -1018,10 +1083,13 @@ def display_dashboard():
                     f"</div>"
                 )
         else:
-            html_parts.append(f"<div style='padding:8px; color:{t['text']}; opacity:0.7;'>메모가 없습니다.</div>")
+            html_parts.append(
+                f"<div style='padding:8px; color:{t['text']}; opacity:0.7;'>메모가 없습니다.</div>"
+            )
 
         html_parts.append("</div></div>")
 
     st.markdown("".join(html_parts), unsafe_allow_html=True)
+
 
 display_dashboard()
